@@ -159,25 +159,30 @@ async def health_check():
 @app.get("/api/v1/hackrx/run")
 async def hackrx_webhook_verification():
     """HackRX webhook endpoint - GET method for webhook verification"""
-    return {
-        "status": "success",
-        "message": "HackRX webhook endpoint is active",
-        "project_name": "LLM Query Retrieval System",
-        "team": "AI Innovators",
-        "hackrx_submission": True,
-        "webhook_verified": True,
-        "timestamp": time.time(),
-        "endpoints": {
-            "POST": "Document processing API",
-            "GET": "Webhook verification"
+    try:
+        return {
+            "status": "success",
+            "message": "HackRX webhook endpoint is active",
+            "project_name": "LLM Query Retrieval System",
+            "team": "AI Innovators",
+            "hackrx_submission": True,
+            "webhook_verified": True,
+            "timestamp": time.time(),
+            "endpoints": {
+                "POST": "Document processing API",
+                "GET": "Webhook verification"
+            }
         }
-    }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Webhook verification failed: {str(e)}"
+        }
 
 @app.post("/api/v1/hackrx/run", response_model=QueryResponse)
 async def hackrx_document_processing(
     request: QueryRequest,
-    req: Request,
-    token: str = Depends(verify_token)
+    req: Request
 ):
     """
     Main endpoint for processing document queries
