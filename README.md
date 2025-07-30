@@ -25,7 +25,7 @@ The system consists of 6 main components:
 ## 📋 Requirements
 
 - Python 3.11+
-- OpenAI API key (GPT-4 access)
+- Google Gemini API key (AI reasoning and processing)
 - Pinecone API key (optional, falls back to in-memory search)
 
 ## 🛠️ Installation
@@ -49,7 +49,7 @@ cp .env.example .env
 
 Required environment variables:
 ```
-OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
 PINECONE_ENVIRONMENT=your_pinecone_environment_here
 PINECONE_INDEX_NAME=document-embeddings
@@ -104,7 +104,7 @@ heroku create your-app-name
 
 2. **Set environment variables**
 ```bash
-heroku config:set OPENAI_API_KEY=your_key
+heroku config:set GEMINI_API_KEY=your_key
 heroku config:set PINECONE_API_KEY=your_key
 ```
 
@@ -210,9 +210,9 @@ The API includes logging and timing information:
 
 ### Common Issues
 
-1. **OpenAI API Errors**
+1. **Gemini API Errors**
    - Check API key validity
-   - Verify GPT-4 access
+   - Verify Gemini API access
    - Monitor rate limits
 
 2. **Pinecone Connection Issues**

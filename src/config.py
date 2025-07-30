@@ -16,18 +16,17 @@ class Config:
     # Authentication
     BEARER_TOKEN = "12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f"
     
-    # OpenAI Configuration
-    OPENAI_API_KEY: Optional[str] = os.getenv('OPENAI_API_KEY')
-    OPENAI_MODEL = "gpt-4-1106-preview"
-    OPENAI_EMBEDDING_MODEL = "text-embedding-ada-002"
-    OPENAI_MAX_TOKENS = 4000
-    OPENAI_TEMPERATURE = 0.1
+    # Gemini Configuration
+    GEMINI_API_KEY: Optional[str] = os.getenv('GEMINI_API_KEY')
+    GEMINI_MODEL = "gemini-pro"
+    GEMINI_MAX_TOKENS = 4000
+    GEMINI_TEMPERATURE = 0.1
     
     # Pinecone Configuration
     PINECONE_API_KEY: Optional[str] = os.getenv('PINECONE_API_KEY')
     PINECONE_ENVIRONMENT: str = os.getenv('PINECONE_ENVIRONMENT', 'us-west1-gcp-free')
     PINECONE_INDEX_NAME: str = os.getenv('PINECONE_INDEX_NAME', 'document-embeddings')
-    PINECONE_DIMENSION = 1536
+    PINECONE_DIMENSION = 384  # Updated for sentence-transformers model
     
     # Document Processing
     CHUNK_SIZE = 1000
