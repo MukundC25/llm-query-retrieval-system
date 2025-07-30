@@ -192,6 +192,9 @@ async def clear_cache(token: str = Depends(verify_token)):
             detail=f"Error clearing cache: {str(e)}"
         )
 
+# Vercel handler
+handler = app
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
