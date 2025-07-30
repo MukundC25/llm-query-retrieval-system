@@ -1,6 +1,6 @@
 # 🚀 Deployment Guide - LLM Query Retrieval System
 
-**HackRX 2024 Submission** - Complete deployment guide for the LLM-Powered Intelligent Query-Retrieval System.
+**HackRX 2025 Submission** - Complete deployment guide for the LLM-Powered Intelligent Query-Retrieval System.
 
 ## 🌟 **Current Live Deployment**
 

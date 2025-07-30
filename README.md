@@ -1,11 +1,11 @@
 # 🧠 LLM-Powered Intelligent Query-Retrieval System
 
-**HackRX 2024 Submission** - An advanced AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using Google Gemini AI and vector similarity search.
+**HackRX 2025 Submission** - An advanced AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using Google Gemini AI and vector similarity search.
 
 ## 🌐 **Live Demo**
 **🚀 Try it now:** [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
 
-## 🎯 **HackRX 2024 Features**
+## 🎯 **HackRX 2025 Features**
 
 - **🔍 Intelligent Document Analysis**: Processes PDF and DOCX files from URLs
 - **💬 Natural Language Queries**: Ask complex questions about document content
@@ -33,7 +33,7 @@
 - **Pinecone API key** (optional, falls back to in-memory search)
 - **Railway/Vercel account** (for deployment)
 
-## 🌟 **HackRX 2024 Submission URLs**
+## 🌟 **HackRX 2025 Submission URLs**
 
 | Service | URL | Purpose |
 |---------|-----|---------|
@@ -219,7 +219,7 @@ python test_api.py
 - **🔍 Health Check**: [System Status](https://llm-query-retrieval-system-production.up.railway.app/health)
 - **💬 Issues**: [GitHub Issues](https://github.com/MukundC25/llm-query-retrieval-system/issues)
 
-## 🏆 **HackRX 2024 Submission**
+## 🏆 **HackRX 2025 Submission**
 
 **Project**: LLM-Powered Intelligent Query-Retrieval System
 **Team**: AI Innovators
@@ -252,4 +252,4 @@ MIT License - Feel free to use and modify for your projects.
 
 **⭐ Star this repository if you found it helpful!**
 
-**🚀 Built for HackRX 2024 with ❤️**
+**🚀 Built for HackRX 2025 with ❤️**
