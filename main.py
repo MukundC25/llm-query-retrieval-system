@@ -156,6 +156,23 @@ async def health_check():
         version="1.0.0"
     )
 
+@app.get("/api/v1/hackrx/run")
+async def hackrx_webhook_status():
+    """HackRX webhook endpoint - GET method for webhook verification"""
+    return {
+        "status": "success",
+        "message": "HackRX webhook endpoint is active",
+        "project_name": "LLM Query Retrieval System",
+        "team": "AI Innovators",
+        "hackrx_submission": True,
+        "webhook_verified": True,
+        "timestamp": time.time(),
+        "endpoints": {
+            "POST": "Document processing API",
+            "GET": "Webhook verification"
+        }
+    }
+
 @app.post("/api/v1/hackrx/run", response_model=QueryResponse)
 async def process_queries(
     request: QueryRequest,
