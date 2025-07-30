@@ -13,6 +13,7 @@ from typing import List, Optional
 import os
 import logging
 import time
+import asyncio
 from dotenv import load_dotenv
 
 # Import our modules with error handling for Vercel
@@ -182,14 +183,26 @@ async def process_queries(
         # Get services (lazy-loaded)
         processor = get_services()
 
-        # Process the document and questions
-        answers = await processor.process_queries(
-            document_url=str(request.documents),
-            questions=request.questions
-        )
+        # Process the document and questions with timeout
+        try:
+            answers = await asyncio.wait_for(
+                processor.process_queries(
+                    document_url=str(request.documents),
+                    questions=request.questions
+                ),
+                timeout=25.0  # 25 second timeout to stay under Railway limits
+            )
 
-        processing_time = time.time() - start_time
-        logger.info(f"Request processed successfully in {processing_time:.2f} seconds")
+            processing_time = time.time() - start_time
+            logger.info(f"Request processed successfully in {processing_time:.2f} seconds")
+
+        except asyncio.TimeoutError:
+            processing_time = time.time() - start_time
+            logger.warning(f"Query processing timed out after {processing_time:.2f} seconds")
+
+            # Return timeout error for all questions
+            timeout_message = "Processing timed out. The document may be too large or complex. Please try with a smaller document or fewer questions."
+            answers = [timeout_message] * len(request.questions)
 
         # Ensure we have the same number of answers as questions
         if len(answers) != len(request.questions):
