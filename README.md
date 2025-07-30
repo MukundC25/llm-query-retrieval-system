@@ -63,11 +63,11 @@ pip install -r requirements.txt
 3. **Set up environment variables**
 ```bash
 # Create .env file with:
-GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
+GEMINI_API_KEY=your_gemini_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
 PINECONE_ENVIRONMENT=us-west1-gcp-free
 PINECONE_INDEX_NAME=document-embeddings
-BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
+BEARER_TOKEN=your_bearer_token_here
 ```
 
 4. **Start the server**
@@ -88,10 +88,10 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 1. **Automatic deployment** from GitHub repository
 2. **Environment variables** configured in Railway dashboard:
-   - `GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM`
-   - `PINECONE_API_KEY=your_key`
+   - `GEMINI_API_KEY=your_gemini_api_key`
+   - `PINECONE_API_KEY=your_pinecone_key`
    - `PINECONE_ENVIRONMENT=us-west1-gcp-free`
-   - `BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f`
+   - `BEARER_TOKEN=your_bearer_token`
 
 3. **Custom domain**: https://llm-query-retrieval-system-production.up.railway.app/
 
@@ -120,7 +120,7 @@ docker run -p 8000:8000 --env-file .env llm-query-system
 ### **🔒 Authentication**
 All API endpoints require Bearer token authentication:
 ```bash
-Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
+Authorization: Bearer YOUR_BEARER_TOKEN
 ```
 
 ### **🎯 Main Endpoint**
@@ -165,7 +165,7 @@ curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v
 ### **Quick Test (Live API)**
 ```bash
 curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run" \
-  -H "Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f" \
+  -H "Authorization: Bearer YOUR_BEARER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf", "questions": ["What is this document about?"]}'
 ```
@@ -209,10 +209,10 @@ python test_api.py
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | **🔴 502 Error** | Server timeout or overload | Try smaller document or fewer questions |
-| **🔑 Authentication Failed** | Invalid bearer token | Use: `12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f` |
+| **🔑 Authentication Failed** | Invalid bearer token | Check your bearer token in environment variables |
 | **📄 Document Not Found** | Invalid URL or permissions | Ensure document URL is publicly accessible |
 | **⏱️ Slow Response** | Large document processing | Use shorter documents or preprocess endpoint |
-| **🤖 Gemini API Error** | API key or rate limits | Check API key: `AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM` |
+| **🤖 Gemini API Error** | API key or rate limits | Verify your Gemini API key configuration |
 
 ### **🆘 Support**
 - **📚 Documentation**: [API Docs](https://llm-query-retrieval-system-production.up.railway.app/docs)

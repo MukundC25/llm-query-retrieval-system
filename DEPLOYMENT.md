@@ -28,12 +28,12 @@ Auto-deploy: Enabled
 Domain: llm-query-retrieval-system-production.up.railway.app
 ```
 
-**Environment Variables (Already Set):**
+**Environment Variables (Required):**
 ```
-GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
+GEMINI_API_KEY=your_gemini_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
 PINECONE_ENVIRONMENT=us-west1-gcp-free
-BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
+BEARER_TOKEN=your_bearer_token_here
 PORT=8000
 ```
 
@@ -58,11 +58,11 @@ PORT=8000
 2. **Set Environment Variables**
    In Railway dashboard → Variables:
    ```
-   GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
-   PINECONE_API_KEY=your_pinecone_api_key
+   GEMINI_API_KEY=your_gemini_api_key_here
+   PINECONE_API_KEY=your_pinecone_api_key_here
    PINECONE_ENVIRONMENT=us-west1-gcp-free
    PINECONE_INDEX_NAME=document-embeddings
-   BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
+   BEARER_TOKEN=your_bearer_token_here
    PORT=8000
    ```
 
@@ -228,17 +228,17 @@ gcloud run deploy --image gcr.io/PROJECT_ID/llm-query-system \
 Test your deployed API:
 ```bash
 curl -X GET "https://your-deployed-url.com/health" \
-  -H "Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f"
+  -H "Authorization: Bearer YOUR_BEARER_TOKEN"
 ```
 
 ### 2. Test with Sample Data
 
 ```bash
 curl -X POST "https://your-deployed-url.com/api/v1/hackrx/run" \
-  -H "Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f" \
+  -H "Authorization: Bearer YOUR_BEARER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D",
+    "documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf",
     "questions": ["What is the grace period for premium payment?"]
   }'
 ```
