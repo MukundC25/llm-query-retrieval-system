@@ -3,6 +3,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 pydantic
+jinja2
 
 # AI dependencies
 google-generativeai

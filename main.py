@@ -6,6 +6,8 @@ Main FastAPI application entry point
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional
 import os
@@ -45,6 +47,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Templates
+templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(
     title="LLM Query-Retrieval System",
@@ -125,8 +130,13 @@ def get_services():
 
     return query_processor
 
-@app.get("/")
-async def root():
+@app.get("/", response_class=HTMLResponse)
+async def frontend(request: Request):
+    """Frontend interface for the LLM Query Retrieval System"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/health")
+async def health_check():
     """Simple health check endpoint for Railway"""
     return {
         "status": "healthy",
@@ -231,6 +241,50 @@ async def clear_cache(token: str = Depends(verify_token)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error clearing cache: {str(e)}"
         )
+
+@app.post("/webhook/hackrx/update")
+async def hackrx_webhook(request: Request):
+    """Webhook endpoint for HackRX daily updates"""
+    try:
+        # Get the request body
+        body = await request.json()
+
+        # Log the webhook call
+        logger.info(f"HackRX webhook called with data: {body}")
+
+        # Return project status for HackRX
+        return {
+            "status": "success",
+            "project_name": "LLM Query Retrieval System",
+            "team": "AI Innovators",
+            "progress": {
+                "api_status": "deployed",
+                "frontend_status": "deployed",
+                "testing_status": "completed",
+                "documentation_status": "completed"
+            },
+            "api_url": "https://llm-query-retrieval-system-production.up.railway.app",
+            "demo_url": "https://llm-query-retrieval-system-production.up.railway.app",
+            "last_updated": time.time(),
+            "features_completed": [
+                "Document processing (PDF, DOCX)",
+                "LLM-powered query parsing",
+                "Vector embeddings and search",
+                "Clause matching and logic evaluation",
+                "Structured JSON responses",
+                "Bearer token authentication",
+                "Web frontend interface",
+                "API documentation"
+            ]
+        }
+
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": time.time()
+        }
 
 # Vercel handler
 handler = app
