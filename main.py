@@ -156,92 +156,105 @@ async def health_check():
         version="1.0.0"
     )
 
-@app.get("/api/v1/hackrx/run")
-async def hackrx_webhook_status():
-    """HackRX webhook endpoint - GET method for webhook verification"""
-    return {
-        "status": "success",
-        "message": "HackRX webhook endpoint is active",
-        "project_name": "LLM Query Retrieval System",
-        "team": "AI Innovators",
-        "hackrx_submission": True,
-        "webhook_verified": True,
-        "timestamp": time.time(),
-        "endpoints": {
-            "POST": "Document processing API",
-            "GET": "Webhook verification"
-        }
-    }
-
-@app.post("/api/v1/hackrx/run", response_model=QueryResponse)
-async def process_queries(
-    request: QueryRequest,
-    req: Request,
+@app.api_route("/api/v1/hackrx/run", methods=["GET", "POST"])
+async def hackrx_endpoint(
+    request: Request,
+    query_request: QueryRequest = None,
     token: str = Depends(verify_token)
 ):
     """
-    Main endpoint for processing document queries
+    HackRX endpoint - handles both GET (webhook verification) and POST (document processing)
 
-    Processes a document from a URL and answers natural language questions about it.
-    Uses vector similarity search and LLM-based reasoning to provide accurate answers.
+    GET: Returns webhook verification status for HackRX
+    POST: Processes document queries with LLM-powered analysis
     """
-    start_time = time.time()
 
-    try:
-        logger.info(f"Processing request with {len(request.questions)} questions for document: {request.documents}")
+    # Handle GET request (webhook verification)
+    if request.method == "GET":
+        return {
+            "status": "success",
+            "message": "HackRX webhook endpoint is active",
+            "project_name": "LLM Query Retrieval System",
+            "team": "AI Innovators",
+            "hackrx_submission": True,
+            "webhook_verified": True,
+            "timestamp": time.time(),
+            "endpoints": {
+                "POST": "Document processing API",
+                "GET": "Webhook verification"
+            }
+        }
 
-        # Validate request
-        if len(request.questions) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one question is required"
-            )
+    # Handle POST request (document processing)
+    if request.method == "POST":
+        if query_request is None:
+            # Try to parse request body manually
+            try:
+                body = await request.json()
+                query_request = QueryRequest(**body)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid request body: {str(e)}"
+                )
 
-        # Get services (lazy-loaded)
-        processor = get_services()
+        start_time = time.time()
 
-        # Process the document and questions with timeout
         try:
-            answers = await asyncio.wait_for(
-                processor.process_queries(
-                    document_url=str(request.documents),
-                    questions=request.questions
-                ),
-                timeout=25.0  # 25 second timeout to stay under Railway limits
-            )
+            logger.info(f"Processing request with {len(query_request.questions)} questions for document: {query_request.documents}")
 
+            # Validate request
+            if len(query_request.questions) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="At least one question is required"
+                )
+
+            # Get services (lazy-loaded)
+            processor = get_services()
+
+            # Process the document and questions with timeout
+            try:
+                answers = await asyncio.wait_for(
+                    processor.process_queries(
+                        document_url=str(query_request.documents),
+                        questions=query_request.questions
+                    ),
+                    timeout=25.0  # 25 second timeout to stay under Railway limits
+                )
+
+                processing_time = time.time() - start_time
+                logger.info(f"Request processed successfully in {processing_time:.2f} seconds")
+
+            except asyncio.TimeoutError:
+                processing_time = time.time() - start_time
+                logger.warning(f"Query processing timed out after {processing_time:.2f} seconds")
+
+                # Return timeout error for all questions
+                timeout_message = "Processing timed out. The document may be too large or complex. Please try with a smaller document or fewer questions."
+                answers = [timeout_message] * len(query_request.questions)
+
+            # Ensure we have the same number of answers as questions
+            if len(answers) != len(query_request.questions):
+                logger.warning(f"Answer count mismatch: {len(answers)} answers for {len(query_request.questions)} questions")
+                # Pad with error messages if needed
+                while len(answers) < len(query_request.questions):
+                    answers.append("Error: Unable to generate answer for this question")
+
+            return QueryResponse(answers=answers)
+
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
             processing_time = time.time() - start_time
-            logger.info(f"Request processed successfully in {processing_time:.2f} seconds")
+            logger.error(f"Error processing queries after {processing_time:.2f} seconds: {e}")
 
-        except asyncio.TimeoutError:
-            processing_time = time.time() - start_time
-            logger.warning(f"Query processing timed out after {processing_time:.2f} seconds")
+            # Return structured error response
+            error_message = f"Error processing queries: {str(e)}"
+            error_answers = [error_message] * len(query_request.questions)
 
-            # Return timeout error for all questions
-            timeout_message = "Processing timed out. The document may be too large or complex. Please try with a smaller document or fewer questions."
-            answers = [timeout_message] * len(request.questions)
-
-        # Ensure we have the same number of answers as questions
-        if len(answers) != len(request.questions):
-            logger.warning(f"Answer count mismatch: {len(answers)} answers for {len(request.questions)} questions")
-            # Pad with error messages if needed
-            while len(answers) < len(request.questions):
-                answers.append("Error: Unable to generate answer for this question")
-
-        return QueryResponse(answers=answers)
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        processing_time = time.time() - start_time
-        logger.error(f"Error processing queries after {processing_time:.2f} seconds: {e}")
-
-        # Return structured error response
-        error_message = f"Error processing queries: {str(e)}"
-        error_answers = [error_message] * len(request.questions)
-
-        return QueryResponse(answers=error_answers)
+            return QueryResponse(answers=error_answers)
 
 @app.post("/api/v1/preprocess")
 async def preprocess_document(
