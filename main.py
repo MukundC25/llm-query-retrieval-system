@@ -126,21 +126,14 @@ def get_services():
 
 @app.get("/")
 async def root():
-    """Health check endpoint with error handling"""
-    try:
-        return {
-            "status": "healthy",
-            "timestamp": time.time(),
-            "version": "1.0.0",
-            "environment": "vercel" if os.getenv('VERCEL') else "local"
-        }
-    except Exception as e:
-        logger.error(f"Root endpoint error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": time.time()
-        }
+    """Simple health check endpoint for Railway"""
+    return {
+        "status": "healthy",
+        "message": "LLM Query Retrieval System is running",
+        "timestamp": time.time(),
+        "version": "1.0.0",
+        "services_available": SERVICES_AVAILABLE
+    }
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
