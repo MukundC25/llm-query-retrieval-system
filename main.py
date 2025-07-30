@@ -182,7 +182,8 @@ async def hackrx_webhook_verification():
 @app.post("/api/v1/hackrx/run", response_model=QueryResponse)
 async def hackrx_document_processing(
     request: QueryRequest,
-    req: Request
+    req: Request,
+    token: str = Depends(verify_token)
 ):
     """
     Main endpoint for processing document queries
