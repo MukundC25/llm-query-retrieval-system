@@ -1,3 +1,1 @@
-# Minimal dependencies for testing
-fastapi==0.104.1
-uvicorn==0.24.0
+# No dependencies needed for basic HTTP handler
