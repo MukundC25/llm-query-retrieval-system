@@ -1,1 +1,17 @@
-# No dependencies needed for basic HTTP handler
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+
+# AI dependencies
+google-generativeai==0.8.0
+
+# Document processing
+pdfminer.six==20231228
+python-docx==1.1.0
+requests==2.31.0
+
+# Essential utilities
+python-dotenv==1.0.0
+httpx==0.25.2
