@@ -1,46 +1,48 @@
-# Deployment Guide
+# 🚀 Deployment Guide - LLM Query Retrieval System
 
-This guide covers deploying the LLM Query-Retrieval System to various cloud platforms.
+**HackRX 2024 Submission** - Complete deployment guide for the LLM-Powered Intelligent Query-Retrieval System.
 
-## 🌐 Platform-Specific Deployment
+## 🌟 **Current Live Deployment**
 
-### 1. Vercel (Recommended for FastAPI)
+**✅ Successfully deployed on Railway:**
+- **🌐 Live Demo**: [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
+- **🔌 API Endpoint**: `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run`
+- **📚 Documentation**: [https://llm-query-retrieval-system-production.up.railway.app/docs](https://llm-query-retrieval-system-production.up.railway.app/docs)
+- **🔧 Status**: Fully operational with frontend and API
+
+## 🌐 **Platform-Specific Deployment**
+
+### 1. Railway (Currently Used - Recommended)
+
+**✅ Current Production Deployment**
 
 **Prerequisites:**
-- Vercel account
-- GitHub repository
+- Railway account
+- GitHub repository (already connected)
 
-**Steps:**
-
-1. **Install Vercel CLI**
-```bash
-npm install -g vercel
+**Current Configuration:**
+```
+Repository: https://github.com/MukundC25/llm-query-retrieval-system
+Branch: main
+Auto-deploy: Enabled
+Domain: llm-query-retrieval-system-production.up.railway.app
 ```
 
-2. **Login to Vercel**
-```bash
-vercel login
+**Environment Variables (Already Set):**
 ```
-
-3. **Deploy**
-```bash
-vercel --prod
-```
-
-4. **Set Environment Variables**
-Go to Vercel Dashboard → Project → Settings → Environment Variables:
-```
-OPENAI_API_KEY=your_openai_api_key
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_ENVIRONMENT=your_pinecone_environment
-PINECONE_INDEX_NAME=document-embeddings
+GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
+PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_ENVIRONMENT=us-west1-gcp-free
+BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
+PORT=8000
 ```
 
 **Configuration Files:**
-- `vercel.json` - Already configured
-- `requirements.txt` - Dependencies list
+- `railway.json` - Railway-specific configuration
+- `run.py` - Application entry point
+- `requirements.txt` - Dependencies
 
-### 2. Railway
+### 2. Vercel (Alternative)
 
 **Prerequisites:**
 - Railway account
@@ -56,10 +58,11 @@ PINECONE_INDEX_NAME=document-embeddings
 2. **Set Environment Variables**
    In Railway dashboard → Variables:
    ```
-   OPENAI_API_KEY=your_openai_api_key
+   GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
    PINECONE_API_KEY=your_pinecone_api_key
-   PINECONE_ENVIRONMENT=your_pinecone_environment
+   PINECONE_ENVIRONMENT=us-west1-gcp-free
    PINECONE_INDEX_NAME=document-embeddings
+   BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
    PORT=8000
    ```
 

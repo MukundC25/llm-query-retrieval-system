@@ -17,7 +17,7 @@ class Config:
     BEARER_TOKEN = "12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f"
     
     # Gemini Configuration
-    GEMINI_API_KEY: Optional[str] = os.getenv('GEMINI_API_KEY')
+    GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', 'AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM')
     GEMINI_MODEL = "gemini-pro"
     GEMINI_MAX_TOKENS = 4000
     GEMINI_TEMPERATURE = 0.1
@@ -48,20 +48,20 @@ class Config:
     @classmethod
     def validate(cls) -> bool:
         """Validate configuration"""
-        if not cls.OPENAI_API_KEY:
+        if not cls.GEMINI_API_KEY:
             return False
         return True
-    
+
     @classmethod
     def get_summary(cls) -> dict:
         """Get configuration summary (without sensitive data)"""
         return {
             "api_version": cls.API_VERSION,
-            "openai_model": cls.OPENAI_MODEL,
+            "gemini_model": cls.GEMINI_MODEL,
             "chunk_size": cls.CHUNK_SIZE,
             "max_questions": cls.MAX_QUESTIONS_PER_REQUEST,
             "vector_top_k": cls.VECTOR_SEARCH_TOP_K,
-            "has_openai_key": bool(cls.OPENAI_API_KEY),
+            "has_gemini_key": bool(cls.GEMINI_API_KEY),
             "has_pinecone_key": bool(cls.PINECONE_API_KEY),
             "pinecone_environment": cls.PINECONE_ENVIRONMENT,
             "pinecone_index": cls.PINECONE_INDEX_NAME

@@ -1,38 +1,57 @@
-# LLM-Powered Intelligent Query-Retrieval System
+# 🧠 LLM-Powered Intelligent Query-Retrieval System
 
-An AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using GPT-4 and vector similarity search.
+**HackRX 2024 Submission** - An advanced AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using Google Gemini AI and vector similarity search.
 
-## 🚀 Features
+## 🌐 **Live Demo**
+**🚀 Try it now:** [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
 
-- **Document Processing**: Ingests PDF and DOCX files from blob URLs
-- **Natural Language Queries**: Processes complex questions about document content
-- **Vector Search**: Uses Pinecone or in-memory FAISS for semantic similarity
-- **LLM Reasoning**: GPT-4 powered logic evaluation and answer generation
-- **Fast Response**: Optimized for <30 second response times
-- **Structured Output**: Returns clean JSON responses with explanations
+## 🎯 **HackRX 2024 Features**
 
-## 🏗️ Architecture
+- **🔍 Intelligent Document Analysis**: Processes PDF and DOCX files from URLs
+- **💬 Natural Language Queries**: Ask complex questions about document content
+- **🧠 AI-Powered Reasoning**: Google Gemini AI for advanced logic evaluation
+- **⚡ Fast Response**: Optimized for <30 second response times
+- **🎨 Modern Web Interface**: Professional, responsive frontend design
+- **📊 Structured Output**: Clean JSON responses with detailed explanations
+- **🔒 Secure API**: Bearer token authentication and HTTPS encryption
 
-The system consists of 6 main components:
+## 🏗️ **System Architecture**
 
-1. **Document Processor**: Downloads and parses PDF/DOCX files
-2. **LLM Service**: GPT-4 integration for query parsing and reasoning
-3. **Vector Service**: Pinecone/FAISS for embedding storage and search
-4. **Query Processor**: Main orchestrator for processing queries
-5. **API Layer**: FastAPI with authentication and validation
-6. **Response Formatter**: Structured JSON output generation
+**Modern, scalable architecture with 6 core components:**
 
-## 📋 Requirements
+1. **📄 Document Processor**: Downloads and parses PDF/DOCX files with advanced text extraction
+2. **🤖 LLM Service**: Google Gemini AI integration for query parsing and intelligent reasoning
+3. **🔍 Vector Service**: Pinecone/FAISS for semantic similarity search and embeddings
+4. **⚙️ Query Processor**: Main orchestrator coordinating all processing components
+5. **🌐 API Layer**: FastAPI with authentication, validation, and comprehensive error handling
+6. **📊 Response Formatter**: Structured JSON output with detailed explanations
 
-- Python 3.11+
-- Google Gemini API key (AI reasoning and processing)
-- Pinecone API key (optional, falls back to in-memory search)
+## 📋 **Requirements**
 
-## 🛠️ Installation
+- **Python 3.11+**
+- **Google Gemini API key** (AI reasoning and processing)
+- **Pinecone API key** (optional, falls back to in-memory search)
+- **Railway/Vercel account** (for deployment)
+
+## 🌟 **HackRX 2024 Submission URLs**
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **🌐 Live Demo** | [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/) | Interactive web interface |
+| **🔌 API Endpoint** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | Main processing API |
+| **📚 API Docs** | [https://llm-query-retrieval-system-production.up.railway.app/docs](https://llm-query-retrieval-system-production.up.railway.app/docs) | Interactive API documentation |
+| **📡 Webhook** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | HackRX daily updates |
+
+## 🛠️ **Quick Start**
+
+### **Option 1: Use Live Demo (Recommended)**
+Just visit: [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
+
+### **Option 2: Local Development**
 
 1. **Clone the repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/MukundC25/llm-query-retrieval-system.git
 cd llm-query-retrieval-system
 ```
 
@@ -43,201 +62,194 @@ pip install -r requirements.txt
 
 3. **Set up environment variables**
 ```bash
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-Required environment variables:
-```
-GEMINI_API_KEY=your_gemini_api_key_here
+# Create .env file with:
+GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM
 PINECONE_API_KEY=your_pinecone_api_key_here
-PINECONE_ENVIRONMENT=your_pinecone_environment_here
+PINECONE_ENVIRONMENT=us-west1-gcp-free
 PINECONE_INDEX_NAME=document-embeddings
+BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
 ```
 
-## 🚀 Local Development
-
-1. **Start the server**
+4. **Start the server**
 ```bash
-python main.py
+python run.py
 # or
-uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. **Test the API**
-```bash
-python test_api.py
-```
+5. **Access the application**
+- **Frontend**: http://localhost:8000/
+- **API docs**: http://localhost:8000/docs
+- **Health check**: http://localhost:8000/health
 
-3. **Access documentation**
-- API docs: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+## 🌐 **Deployment (Railway)**
 
-## 🌐 Deployment
+**Current deployment is live on Railway:**
 
-### Vercel (Recommended)
+1. **Automatic deployment** from GitHub repository
+2. **Environment variables** configured in Railway dashboard:
+   - `GEMINI_API_KEY=AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM`
+   - `PINECONE_API_KEY=your_key`
+   - `PINECONE_ENVIRONMENT=us-west1-gcp-free`
+   - `BEARER_TOKEN=12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f`
 
-1. **Install Vercel CLI**
+3. **Custom domain**: https://llm-query-retrieval-system-production.up.railway.app/
+
+### **Deploy Your Own Instance**
+
+**Railway (Recommended):**
+1. Fork this repository
+2. Connect to Railway
+3. Set environment variables
+4. Deploy automatically
+
+**Vercel:**
 ```bash
 npm i -g vercel
-```
-
-2. **Deploy**
-```bash
 vercel --prod
 ```
 
-3. **Set environment variables in Vercel dashboard**
-
-### Railway
-
-1. **Connect GitHub repository to Railway**
-2. **Set environment variables**
-3. **Deploy automatically on push**
-
-### Heroku
-
-1. **Create Heroku app**
-```bash
-heroku create your-app-name
-```
-
-2. **Set environment variables**
-```bash
-heroku config:set GEMINI_API_KEY=your_key
-heroku config:set PINECONE_API_KEY=your_key
-```
-
-3. **Deploy**
-```bash
-git push heroku main
-```
-
-### Docker
-
-1. **Build image**
+**Docker:**
 ```bash
 docker build -t llm-query-system .
-```
-
-2. **Run container**
-```bash
 docker run -p 8000:8000 --env-file .env llm-query-system
 ```
 
-## 📡 API Usage
+## 📡 **API Usage**
 
-### Authentication
-All endpoints require Bearer token authentication:
-```
+### **🔒 Authentication**
+All API endpoints require Bearer token authentication:
+```bash
 Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f
 ```
 
-### Main Endpoint
+### **🎯 Main Endpoint**
 
 **POST** `/api/v1/hackrx/run`
 
-**Request:**
-```json
-{
-  "documents": "https://example.com/document.pdf",
-  "questions": [
-    "What is the grace period for premium payment?",
-    "What are the coverage conditions?"
-  ]
-}
+**Example Request:**
+```bash
+curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run" \
+  -H "Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf",
+    "questions": [
+      "What is the grace period for premium payment?",
+      "What are the coverage conditions?"
+    ]
+  }'
 ```
 
 **Response:**
 ```json
 {
   "answers": [
-    "The grace period for premium payment is 30 days from the due date.",
-    "Coverage conditions include a 2-year waiting period for pre-existing diseases."
+    "The grace period for premium payment is 30 days from the due date as specified in Section 4.2 of the policy document.",
+    "Coverage conditions include a 2-year waiting period for pre-existing diseases and immediate coverage for accidents as outlined in Section 3.1."
   ]
 }
 ```
 
-### Other Endpoints
+### **🔧 Additional Endpoints**
 
-- **GET** `/` - Health check
-- **GET** `/health` - Detailed health status
-- **POST** `/api/v1/preprocess` - Preprocess document for faster queries
-- **DELETE** `/api/v1/cache` - Clear document cache
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| **GET** | `/` | Frontend web interface |
+| **GET** | `/health` | API health status |
+| **GET** | `/docs` | Interactive API documentation |
+| **GET** | `/api/v1/hackrx/status` | HackRX project status |
 
-## 🧪 Testing
+## 🧪 **Testing**
 
-Run the test suite:
+### **Quick Test (Live API)**
+```bash
+curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run" \
+  -H "Authorization: Bearer 12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f" \
+  -H "Content-Type: application/json" \
+  -d '{"documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf", "questions": ["What is this document about?"]}'
+```
+
+### **Local Testing**
 ```bash
 python test_api.py
 ```
 
-For deployed API:
-```bash
-API_URL=https://your-deployed-url.com python test_api.py
-```
+## ⚙️ **Technical Specifications**
 
-## 🔧 Configuration
+### **🚀 Performance**
+- **Response Time**: <30 seconds for most documents
+- **Document Size**: Up to 50MB supported
+- **Concurrent Requests**: Optimized for multiple simultaneous queries
+- **Timeout Handling**: 25-second server timeout with graceful error handling
 
-### Performance Tuning
+### **🔧 Configuration**
+- **Chunk Size**: 1000 characters with 200 character overlap
+- **Vector Search**: Top-5 semantic similarity results
+- **LLM Model**: Google Gemini Pro with 0.1 temperature
+- **Max Tokens**: 4000 tokens per response
 
-- **Chunk Size**: Adjust `chunk_size` in `DocumentProcessor` (default: 1000 chars)
-- **Vector Search**: Modify `top_k` parameter for more/fewer results
-- **Token Limits**: Configure `max_tokens` in `LLMService`
+### **💾 Caching & Storage**
+- **Document Caching**: Automatic caching for faster repeated queries
+- **Vector Storage**: Pinecone cloud or in-memory FAISS fallback
+- **Session Management**: Stateless API design
 
-### Caching
+## 🔒 **Security & Compliance**
 
-The system includes document caching to avoid reprocessing:
-- Documents are cached after first processing
-- Use `/api/v1/cache` endpoint to clear cache
-- Cache persists for the application lifetime
+- **🔐 Authentication**: Bearer token required for all endpoints
+- **🌐 HTTPS**: TLS encryption enforced in production
+- **✅ Input Validation**: Comprehensive request validation and sanitization
+- **🛡️ Error Handling**: Secure error responses without sensitive data exposure
+- **📝 Logging**: Comprehensive audit trail for all requests
 
-## 📊 Monitoring
+## 🐛 **Troubleshooting**
 
-The API includes logging and timing information:
-- Request processing times
-- Error tracking
-- Document processing statistics
+### **Common Issues & Solutions**
 
-## 🔒 Security
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **🔴 502 Error** | Server timeout or overload | Try smaller document or fewer questions |
+| **🔑 Authentication Failed** | Invalid bearer token | Use: `12776c804e23764323a141d7736af662e2e2d41a9deaf12e331188a32e1c299f` |
+| **📄 Document Not Found** | Invalid URL or permissions | Ensure document URL is publicly accessible |
+| **⏱️ Slow Response** | Large document processing | Use shorter documents or preprocess endpoint |
+| **🤖 Gemini API Error** | API key or rate limits | Check API key: `AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM` |
 
-- Bearer token authentication required
-- HTTPS enforced in production
-- Input validation and sanitization
-- Rate limiting recommended for production
+### **🆘 Support**
+- **📚 Documentation**: [API Docs](https://llm-query-retrieval-system-production.up.railway.app/docs)
+- **🔍 Health Check**: [System Status](https://llm-query-retrieval-system-production.up.railway.app/health)
+- **💬 Issues**: [GitHub Issues](https://github.com/MukundC25/llm-query-retrieval-system/issues)
 
-## 🐛 Troubleshooting
+## 🏆 **HackRX 2024 Submission**
 
-### Common Issues
+**Project**: LLM-Powered Intelligent Query-Retrieval System
+**Team**: AI Innovators
+**Tech Stack**: FastAPI + Google Gemini + Railway + Tailwind CSS
+**Demo**: [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
 
-1. **Gemini API Errors**
-   - Check API key validity
-   - Verify Gemini API access
-   - Monitor rate limits
+### **🎯 Submission Checklist**
+- ✅ **Live Demo URL**: Working web interface
+- ✅ **API Endpoint**: Functional REST API
+- ✅ **Webhook URL**: Daily updates endpoint
+- ✅ **Documentation**: Comprehensive API docs
+- ✅ **Authentication**: Secure bearer token system
+- ✅ **Performance**: <30 second response times
+- ✅ **Error Handling**: Robust error management
+- ✅ **Frontend**: Professional web interface
 
-2. **Pinecone Connection Issues**
-   - Verify API key and environment
-   - Check index name configuration
-   - System falls back to in-memory search
+## 📝 **License**
 
-3. **Document Processing Errors**
-   - Ensure document URL is accessible
-   - Check file format (PDF/DOCX supported)
-   - Verify blob URL permissions
+MIT License - Feel free to use and modify for your projects.
 
-4. **Slow Response Times**
-   - Use document preprocessing endpoint
-   - Reduce number of questions per request
-   - Optimize chunk size and search parameters
+## 🤝 **Contributing**
 
-## 📝 License
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
 
-This project is licensed under the MIT License.
+---
 
-## 🤝 Contributing
+**⭐ Star this repository if you found it helpful!**
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+**🚀 Built for HackRX 2024 with ❤️**
