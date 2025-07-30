@@ -8,7 +8,14 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 import logging
-from sentence_transformers import SentenceTransformer
+
+# Try to import sentence_transformers, fallback to simple embeddings
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    logging.warning("sentence_transformers not available, using fallback embeddings")
 
 logger = logging.getLogger(__name__)
 

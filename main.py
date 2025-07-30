@@ -6,7 +6,7 @@ Main FastAPI application entry point
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, HttpUrl, validator
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional
 import os
 import logging
@@ -84,7 +84,8 @@ class QueryRequest(BaseModel):
     documents: HttpUrl
     questions: List[str]
 
-    @validator('questions')
+    @field_validator('questions')
+    @classmethod
     def validate_questions(cls, v):
         if not v:
             raise ValueError('At least one question is required')
