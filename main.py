@@ -13,10 +13,28 @@ import logging
 import time
 from dotenv import load_dotenv
 
-from src.document_processor import DocumentProcessor
-from src.llm_service import LLMService
-from src.vector_service import VectorService
-from src.query_processor import QueryProcessor
+# Import our modules with error handling for Vercel
+try:
+    from src.document_processor import DocumentProcessor
+    from src.llm_service import LLMService
+    from src.vector_service import VectorService
+    from src.query_processor import QueryProcessor
+    SERVICES_AVAILABLE = True
+except ImportError as e:
+    logging.error(f"Failed to import services: {e}")
+    SERVICES_AVAILABLE = False
+    # Create dummy classes for basic functionality
+    class DocumentProcessor:
+        pass
+    class LLMService:
+        pass
+    class VectorService:
+        pass
+    class QueryProcessor:
+        def __init__(self, *args):
+            pass
+        async def process_queries(self, *args, **kwargs):
+            return ["Error: Services not available in this environment"]
 
 # Load environment variables
 load_dotenv()
@@ -82,22 +100,47 @@ class HealthResponse(BaseModel):
     timestamp: float
     version: str
 
-# Initialize services
-logger.info("Initializing services...")
-document_processor = DocumentProcessor()
-llm_service = LLMService()
-vector_service = VectorService()
-query_processor = QueryProcessor(document_processor, llm_service, vector_service)
-logger.info("Services initialized successfully")
+# Global service instances (lazy-loaded)
+document_processor = None
+llm_service = None
+vector_service = None
+query_processor = None
 
-@app.get("/", response_model=HealthResponse)
+def get_services():
+    """Lazy-load services to avoid Vercel startup issues"""
+    global document_processor, llm_service, vector_service, query_processor
+
+    if query_processor is None:
+        try:
+            logger.info("Initializing services...")
+            document_processor = DocumentProcessor()
+            llm_service = LLMService()
+            vector_service = VectorService()
+            query_processor = QueryProcessor(document_processor, llm_service, vector_service)
+            logger.info("Services initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize services: {e}")
+            raise
+
+    return query_processor
+
+@app.get("/")
 async def root():
-    """Health check endpoint"""
-    return HealthResponse(
-        status="healthy",
-        timestamp=time.time(),
-        version="1.0.0"
-    )
+    """Health check endpoint with error handling"""
+    try:
+        return {
+            "status": "healthy",
+            "timestamp": time.time(),
+            "version": "1.0.0",
+            "environment": "vercel" if os.getenv('VERCEL') else "local"
+        }
+    except Exception as e:
+        logger.error(f"Root endpoint error: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -132,8 +175,11 @@ async def process_queries(
                 detail="At least one question is required"
             )
 
+        # Get services (lazy-loaded)
+        processor = get_services()
+
         # Process the document and questions
-        answers = await query_processor.process_queries(
+        answers = await processor.process_queries(
             document_url=str(request.documents),
             questions=request.questions
         )
