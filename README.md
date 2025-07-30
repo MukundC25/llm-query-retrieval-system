@@ -38,9 +38,9 @@
 | Service | URL | Purpose |
 |---------|-----|---------|
 | **🌐 Live Demo** | [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/) | Interactive web interface |
-| **🔌 API Endpoint** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | Main processing API |
+| **🔌 API Endpoint** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | Main processing API (POST) |
 | **📚 API Docs** | [https://llm-query-retrieval-system-production.up.railway.app/docs](https://llm-query-retrieval-system-production.up.railway.app/docs) | Interactive API documentation |
-| **📡 Webhook** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | HackRX daily updates |
+| **📡 Webhook** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/status` | HackRX daily updates (GET) |
 
 ## 🛠️ **Quick Start**
 
