@@ -1,14 +1,13 @@
-# Core FastAPI dependencies
+# Core FastAPI dependencies - minimal for Vercel
 fastapi==0.104.1
 uvicorn==0.24.0
 python-multipart==0.0.6
 pydantic==2.5.0
 
-# AI/ML dependencies - optimized for Vercel
+# AI dependencies - lightweight only
 google-generativeai==0.8.0
-pinecone-client==3.0.0
 
-# Document processing - lightweight versions
+# Document processing - essential only
 pdfminer.six==20231228
 python-docx==1.1.0
 requests==2.31.0
@@ -16,10 +15,3 @@ requests==2.31.0
 # Essential utilities
 python-dotenv==1.0.0
 httpx==0.25.2
-aiofiles==23.2.1
-
-# Python 3.12 compatibility
-setuptools==69.0.0
-
-# Lightweight ML for embeddings (fallback)
-scikit-learn==1.4.0

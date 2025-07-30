@@ -26,14 +26,9 @@ class LLMService:
         self.max_tokens = 4000
         self.temperature = 0.1  # Low temperature for consistent results
 
-        # Initialize embedding model (using simple fallback for Vercel)
-        try:
-            from sentence_transformers import SentenceTransformer
-            self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-            logger.info("Loaded SentenceTransformer embedding model")
-        except Exception as e:
-            logger.warning(f"SentenceTransformer not available, using simple fallback: {e}")
-            self.embedding_model = None
+        # Use simple fallback embeddings for Vercel (no heavy ML dependencies)
+        logger.info("Using lightweight fallback embeddings for Vercel deployment")
+        self.embedding_model = None
     
     def count_tokens(self, text: str) -> int:
         """Count tokens in text (approximate for Gemini)"""

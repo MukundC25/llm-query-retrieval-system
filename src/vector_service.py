@@ -3,10 +3,8 @@ Vector Database Service Module
 Handles Pinecone integration and vector similarity search
 """
 
-import pinecone
 import os
 import hashlib
-import numpy as np
 from typing import List, Dict, Any, Optional
 import logging
 import time
@@ -34,10 +32,17 @@ class VectorService:
                 self.vectors_cache = {}
                 return
             
-            pinecone.init(
-                api_key=self.api_key,
-                environment=self.environment
-            )
+            try:
+                import pinecone
+                pinecone.init(
+                    api_key=self.api_key,
+                    environment=self.environment
+                )
+            except ImportError:
+                logger.warning("Pinecone not installed, using fallback vector search")
+                self.use_pinecone = False
+                self.vectors_cache = {}
+                return
             
             # Check if index exists, create if not
             if self.index_name not in pinecone.list_indexes():
@@ -64,6 +69,17 @@ class VectorService:
         """Generate unique ID for document chunk"""
         url_hash = hashlib.md5(document_url.encode()).hexdigest()[:8]
         return f"{url_hash}_chunk_{chunk_id}"
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity without numpy"""
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        magnitude1 = sum(a * a for a in vec1) ** 0.5
+        magnitude2 = sum(a * a for a in vec2) ** 0.5
+
+        if magnitude1 == 0 or magnitude2 == 0:
+            return 0.0
+
+        return dot_product / (magnitude1 * magnitude2)
     
     async def store_document_embeddings(
         self, 
@@ -203,17 +219,14 @@ class VectorService:
     ) -> List[Dict[str, Any]]:
         """Search using in-memory vectors (fallback)"""
         
-        query_vector = np.array(query_embedding)
         similarities = []
-        
+
         for vector_id, data in self.vectors_cache.items():
             if data['metadata']['document_url'] == document_url:
-                stored_vector = np.array(data['embedding'])
-                
-                # Calculate cosine similarity
-                similarity = np.dot(query_vector, stored_vector) / (
-                    np.linalg.norm(query_vector) * np.linalg.norm(stored_vector)
-                )
+                stored_vector = data['embedding']
+
+                # Calculate cosine similarity without numpy
+                similarity = self._cosine_similarity(query_embedding, stored_vector)
                 
                 similarities.append({
                     'similarity': similarity,
