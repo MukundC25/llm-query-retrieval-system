@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python main.py",
+    "startCommand": "python run.py",
     "healthcheckPath": "/",
     "healthcheckTimeout": 600,
     "restartPolicyType": "ON_FAILURE",
