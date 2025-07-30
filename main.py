@@ -242,49 +242,47 @@ async def clear_cache(token: str = Depends(verify_token)):
             detail=f"Error clearing cache: {str(e)}"
         )
 
-@app.post("/webhook/hackrx/update")
-async def hackrx_webhook(request: Request):
-    """Webhook endpoint for HackRX daily updates"""
-    try:
-        # Get the request body
-        body = await request.json()
-
-        # Log the webhook call
-        logger.info(f"HackRX webhook called with data: {body}")
-
-        # Return project status for HackRX
-        return {
-            "status": "success",
-            "project_name": "LLM Query Retrieval System",
-            "team": "AI Innovators",
-            "progress": {
-                "api_status": "deployed",
-                "frontend_status": "deployed",
-                "testing_status": "completed",
-                "documentation_status": "completed"
-            },
-            "api_url": "https://llm-query-retrieval-system-production.up.railway.app",
+@app.get("/api/v1/hackrx/status")
+async def hackrx_status():
+    """HackRX project status endpoint for daily updates"""
+    return {
+        "status": "success",
+        "project_name": "LLM Query Retrieval System",
+        "team": "AI Innovators",
+        "hackrx_submission": True,
+        "progress": {
+            "api_status": "deployed",
+            "frontend_status": "deployed",
+            "testing_status": "completed",
+            "documentation_status": "completed"
+        },
+        "urls": {
+            "api_endpoint": "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run",
             "demo_url": "https://llm-query-retrieval-system-production.up.railway.app",
-            "last_updated": time.time(),
-            "features_completed": [
-                "Document processing (PDF, DOCX)",
-                "LLM-powered query parsing",
-                "Vector embeddings and search",
-                "Clause matching and logic evaluation",
-                "Structured JSON responses",
-                "Bearer token authentication",
-                "Web frontend interface",
-                "API documentation"
-            ]
+            "documentation": "https://llm-query-retrieval-system-production.up.railway.app/docs"
+        },
+        "last_updated": time.time(),
+        "features_completed": [
+            "Document processing (PDF, DOCX)",
+            "LLM-powered query parsing with Gemini AI",
+            "Vector embeddings and semantic search",
+            "Clause matching and logic evaluation",
+            "Structured JSON responses",
+            "Bearer token authentication",
+            "Web frontend interface",
+            "API documentation",
+            "Sub-30 second response times",
+            "HTTPS deployment on Railway"
+        ],
+        "technical_specs": {
+            "backend": "FastAPI",
+            "llm": "Google Gemini",
+            "vector_db": "In-memory with fallback",
+            "deployment": "Railway",
+            "authentication": "Bearer token",
+            "response_format": "JSON"
         }
-
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "timestamp": time.time()
-        }
+    }
 
 # Vercel handler
 handler = app
