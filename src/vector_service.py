@@ -20,7 +20,7 @@ class VectorService:
         self.api_key = os.getenv('PINECONE_API_KEY')
         self.environment = os.getenv('PINECONE_ENVIRONMENT', 'us-west1-gcp-free')
         self.index_name = os.getenv('PINECONE_INDEX_NAME', 'document-embeddings')
-        self.dimension = 1536  # OpenAI ada-002 embedding dimension
+        self.dimension = 384  # Updated for sentence-transformers/fallback embeddings
         
         # Initialize Pinecone
         self._initialize_pinecone()
