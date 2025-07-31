@@ -93,12 +93,19 @@ class QueryResponse(BaseModel):
 # Initialize Gemini
 def initialize_gemini():
     """Initialize Gemini AI"""
-    api_key = os.getenv('GEMINI_API_KEY')
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY environment variable is required")
-    
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    try:
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            logger.error("GEMINI_API_KEY environment variable is required")
+            return None
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        logger.info("Gemini model initialized successfully")
+        return model
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini: {e}")
+        return None
 
 # Global model instance
 gemini_model = None
@@ -235,7 +242,10 @@ async def answer_question(question: str, document_text: str) -> str:
     """Generate answer using Gemini AI"""
     try:
         model = get_gemini_model()
-        
+
+        if model is None:
+            return "Error: AI service is not available. Please try again later."
+
         # Create prompt for question answering
         prompt = f"""
 You are an expert document analyst. Based on the provided document content, answer the following question accurately and concisely.
@@ -260,9 +270,12 @@ Answer:"""
                 temperature=0.1
             )
         )
-        
-        return response.text.strip()
-        
+
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return "Error: No response generated from AI service"
+
     except Exception as e:
         logger.error(f"Error generating answer: {e}")
         return f"Error: Unable to generate answer - {str(e)}"
