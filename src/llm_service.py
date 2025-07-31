@@ -9,13 +9,9 @@ import json
 from typing import List, Dict, Any, Optional
 import logging
 
-# Try to import sentence_transformers, fallback to simple embeddings
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logging.warning("sentence_transformers not available, using fallback embeddings")
+# Use simple embeddings for better compatibility
+SENTENCE_TRANSFORMERS_AVAILABLE = False
+logging.info("Using simple fallback embeddings for better compatibility")
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +25,8 @@ class LLMService:
             raise ValueError("GEMINI_API_KEY environment variable is required")
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Use the latest available model
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
         self.max_tokens = 4000
         self.temperature = 0.1  # Low temperature for consistent results
 

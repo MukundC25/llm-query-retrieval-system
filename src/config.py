@@ -18,7 +18,7 @@ class Config:
     
     # Gemini Configuration
     GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', 'AIzaSyAN0Upn-E8l1m9KL99p6Mrq8fe-DTfgpOM')
-    GEMINI_MODEL = "gemini-pro"
+    GEMINI_MODEL = "gemini-1.5-flash"
     GEMINI_MAX_TOKENS = 4000
     GEMINI_TEMPERATURE = 0.1
     

@@ -25,45 +25,10 @@ class VectorService:
     
     def _initialize_pinecone(self):
         """Initialize Pinecone connection and index"""
-        try:
-            if not self.api_key:
-                logger.warning("Pinecone API key not found, using fallback vector search")
-                self.use_pinecone = False
-                self.vectors_cache = {}
-                return
-            
-            try:
-                import pinecone
-                pinecone.init(
-                    api_key=self.api_key,
-                    environment=self.environment
-                )
-            except ImportError:
-                logger.warning("Pinecone not installed, using fallback vector search")
-                self.use_pinecone = False
-                self.vectors_cache = {}
-                return
-            
-            # Check if index exists, create if not
-            if self.index_name not in pinecone.list_indexes():
-                logger.info(f"Creating Pinecone index: {self.index_name}")
-                pinecone.create_index(
-                    name=self.index_name,
-                    dimension=self.dimension,
-                    metric='cosine'
-                )
-                # Wait for index to be ready
-                time.sleep(10)
-            
-            self.index = pinecone.Index(self.index_name)
-            self.use_pinecone = True
-            logger.info("Pinecone initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Error initializing Pinecone: {e}")
-            logger.warning("Falling back to in-memory vector search")
-            self.use_pinecone = False
-            self.vectors_cache = {}
+        # Always use in-memory vector search for reliability
+        logger.info("Using in-memory vector search for maximum compatibility")
+        self.use_pinecone = False
+        self.vectors_cache = {}
     
     def _generate_chunk_id(self, document_url: str, chunk_id: int) -> str:
         """Generate unique ID for document chunk"""
