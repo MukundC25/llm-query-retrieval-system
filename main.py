@@ -26,8 +26,6 @@ from docx import Document
 
 # AI imports
 import google.generativeai as genai
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 # Load environment variables
 load_dotenv()
@@ -238,28 +236,49 @@ def clean_text(text: str) -> str:
     text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)]', ' ', text)
     return text.strip()
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 150) -> List[dict]:
-    """Split text into overlapping chunks with smart boundary detection"""
+def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 300) -> List[dict]:
+    """Split text into overlapping chunks with smart boundary detection and better context preservation"""
     chunks = []
     text_length = len(text)
     start = 0
     chunk_id = 0
 
+    # First, try to identify major sections (often marked by headers or specific patterns)
+    section_markers = [
+        'SECTION', 'CLAUSE', 'ARTICLE', 'PART', 'CHAPTER',
+        'WAITING PERIOD', 'GRACE PERIOD', 'COVERAGE', 'EXCLUSION',
+        'BENEFIT', 'PREMIUM', 'CLAIM', 'DEFINITION'
+    ]
+
     while start < text_length:
         end = min(start + chunk_size, text_length)
 
-        # Try to break at sentence boundary for better semantic coherence
+        # Try to break at section boundaries first
         if end < text_length:
-            # Look for sentence endings within the last 200 characters
-            for punct in ['. ', '.\n', '! ', '!\n', '? ', '?\n']:
-                sentence_end = text.rfind(punct, max(start, end - 200), end)
-                if sentence_end > start:
-                    end = sentence_end + len(punct)
-                    break
+            # Look for section markers within the last 400 characters
+            best_break = end
+            for marker in section_markers:
+                marker_pos = text.upper().rfind(marker, max(start, end - 400), end)
+                if marker_pos > start + 200:  # Ensure minimum chunk size
+                    # Find the start of the line containing the marker
+                    line_start = text.rfind('\n', start, marker_pos)
+                    if line_start > start:
+                        best_break = line_start
+                        break
+
+            # If no section marker found, try sentence boundaries
+            if best_break == end:
+                for punct in ['. ', '.\n', '! ', '!\n', '? ', '?\n']:
+                    sentence_end = text.rfind(punct, max(start, end - 300), end)
+                    if sentence_end > start + 100:  # Ensure minimum chunk size
+                        best_break = sentence_end + len(punct)
+                        break
+
+            end = best_break
 
         chunk_text = text[start:end].strip()
 
-        if chunk_text and len(chunk_text) > 50:  # Only include meaningful chunks
+        if chunk_text and len(chunk_text) > 100:  # Only include meaningful chunks
             chunks.append({
                 'id': chunk_id,
                 'text': chunk_text,
@@ -355,6 +374,37 @@ def find_relevant_chunks(query: str, document_data: dict, top_k: int = 5) -> Lis
         logger.error(f"Error finding relevant chunks: {e}")
         return []
 
+def find_text_matches(question: str, document_data: dict) -> List[dict]:
+    """Find chunks containing exact text matches for key terms"""
+    question_lower = question.lower()
+    key_terms = []
+
+    # Extract key terms from question
+    insurance_terms = [
+        'waiting period', 'grace period', 'premium', 'maternity', 'sum insured',
+        'room rent', 'cataract', 'ayush', 'exclusion', 'organ donor', 'policy term',
+        'pre-existing', 'coverage', 'benefit', 'claim', 'deductible', 'copayment'
+    ]
+
+    for term in insurance_terms:
+        if term in question_lower:
+            key_terms.append(term)
+
+    # Find chunks containing these terms
+    matching_chunks = []
+    for chunk in document_data['chunks']:
+        chunk_text_lower = chunk['text'].lower()
+        for term in key_terms:
+            if term in chunk_text_lower:
+                matching_chunks.append({
+                    'chunk': chunk,
+                    'matched_term': term,
+                    'text_score': 1.0
+                })
+                break
+
+    return matching_chunks
+
 async def answer_question_with_context(question: str, relevant_chunks: List[dict]) -> str:
     """Generate answer using Gemini AI with relevant context chunks"""
     try:
@@ -369,35 +419,42 @@ async def answer_question_with_context(question: str, relevant_chunks: List[dict
         # Prepare context from relevant chunks
         context_parts = []
         for i, chunk in enumerate(relevant_chunks):
-            similarity = chunk.get('similarity_score', 0)
-            context_parts.append(f"[Context {i+1} - Relevance: {similarity:.2f}]\n{chunk['text']}\n")
+            similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
+            context_parts.append(f"[Section {i+1} - Relevance: {similarity:.2f}]\n{chunk['text']}\n")
 
         context = "\n".join(context_parts)
 
-        # Enhanced prompt for better accuracy
-        prompt = f"""You are an expert document analyst specializing in insurance, legal, and policy documents. Your task is to answer questions based ONLY on the provided document context.
+        # Enhanced prompt with specific insurance domain knowledge
+        prompt = f"""You are an expert insurance policy analyst. Analyze the provided policy document sections to answer the question accurately.
 
-DOCUMENT CONTEXT:
+POLICY DOCUMENT SECTIONS:
 {context}
 
 QUESTION: {question}
 
-INSTRUCTIONS:
-1. Answer ONLY based on the information provided in the document context above
-2. If the specific information is not in the context, respond with "This information is not available in the provided document"
-3. Include specific details, numbers, dates, percentages, and conditions when available
-4. Quote relevant sections when appropriate
-5. Be precise and factual - do not infer or assume information not explicitly stated
-6. If multiple conditions or scenarios apply, list them clearly
-7. For policy-related questions, include relevant clauses, waiting periods, coverage limits, etc.
+ANALYSIS INSTRUCTIONS:
+1. Search through ALL provided sections for relevant information
+2. Look for specific terms related to the question (waiting periods, grace periods, coverage details, etc.)
+3. If you find relevant information, provide a detailed answer with specific details
+4. Include exact numbers, percentages, time periods, and conditions mentioned
+5. If information spans multiple sections, combine them logically
+6. If the specific information is truly not present, state "This information is not available in the provided document"
+7. For insurance questions, always look for:
+   - Waiting periods (pre-existing diseases, specific conditions)
+   - Grace periods (premium payments)
+   - Coverage limits and conditions
+   - Exclusions and limitations
+   - Sum insured amounts
+   - Sub-limits (room rent, ICU charges)
+   - Special benefits (maternity, AYUSH, preventive care)
 
-ANSWER:"""
+ANSWER (be specific and detailed):"""
 
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
-                max_output_tokens=1000,
-                temperature=0.1
+                max_output_tokens=1200,
+                temperature=0.05  # Even lower temperature for more consistency
             )
         )
 
@@ -406,9 +463,9 @@ ANSWER:"""
 
             # Add source reference if answer contains information
             if "not available" not in answer.lower() and len(relevant_chunks) > 0:
-                best_similarity = relevant_chunks[0].get('similarity_score', 0)
-                if best_similarity > 0.3:  # Only add reference for good matches
-                    answer += f"\n\n[Source: Document section with {best_similarity:.1%} relevance match]"
+                best_similarity = relevant_chunks[0].get('similarity_score', relevant_chunks[0].get('text_score', 0))
+                if best_similarity > 0.2:  # Lower threshold for text matches
+                    answer += f"\n\n[Source: Policy document section with {best_similarity:.1%} relevance]"
 
             return answer
         else:
@@ -422,7 +479,7 @@ ANSWER:"""
 document_cache = {}
 
 async def process_queries(document_url: str, questions: List[str]) -> List[str]:
-    """Process all queries for a document using semantic search"""
+    """Process all queries for a document using hybrid search (semantic + text matching)"""
     try:
         # Check cache first
         if document_url in document_cache:
@@ -434,14 +491,43 @@ async def process_queries(document_url: str, questions: List[str]) -> List[str]:
             document_data = await process_document(document_url)
             document_cache[document_url] = document_data
 
-        # Answer all questions using semantic search
+        # Answer all questions using hybrid search
         answers = []
         for i, question in enumerate(questions):
             try:
                 logger.info(f"Processing question {i+1}/{len(questions)}: {question}")
 
-                # Find relevant chunks using semantic similarity
-                relevant_chunks = find_relevant_chunks(question, document_data, top_k=5)
+                # Strategy 1: Find relevant chunks using semantic similarity
+                semantic_chunks = find_relevant_chunks(question, document_data, top_k=3)
+
+                # Strategy 2: Find chunks with exact text matches
+                text_match_chunks = find_text_matches(question, document_data)
+
+                # Combine and deduplicate chunks
+                all_chunks = []
+                chunk_ids_seen = set()
+
+                # Add semantic chunks first
+                for chunk_data in semantic_chunks:
+                    chunk_id = chunk_data.get('id', id(chunk_data))
+                    if chunk_id not in chunk_ids_seen:
+                        all_chunks.append(chunk_data)
+                        chunk_ids_seen.add(chunk_id)
+
+                # Add text match chunks
+                for match_data in text_match_chunks:
+                    chunk = match_data['chunk']
+                    chunk_id = chunk.get('id', id(chunk))
+                    if chunk_id not in chunk_ids_seen:
+                        chunk_with_score = chunk.copy()
+                        chunk_with_score['text_score'] = match_data['text_score']
+                        all_chunks.append(chunk_with_score)
+                        chunk_ids_seen.add(chunk_id)
+
+                # Limit to top 5 chunks
+                relevant_chunks = all_chunks[:5]
+
+                logger.info(f"Found {len(relevant_chunks)} relevant chunks ({len(semantic_chunks)} semantic + {len(text_match_chunks)} text matches)")
 
                 # Generate answer with context
                 answer = await answer_question_with_context(question, relevant_chunks)
