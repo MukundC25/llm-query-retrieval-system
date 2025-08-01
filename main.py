@@ -187,20 +187,42 @@ async def download_document(url: str) -> bytes:
         raise Exception(f"Failed to download document: {e}")
 
 def extract_text_from_pdf(pdf_content: bytes) -> str:
-    """Extract text from PDF content"""
+    """Extract text from PDF content with multiple strategies"""
     try:
+        # Strategy 1: Standard extraction with optimized parameters
         laparams = LAParams(
             boxes_flow=0.5,
             word_margin=0.1,
             char_margin=2.0,
             line_margin=0.5
         )
-        
-        text = extract_text(
+
+        text1 = extract_text(
             io.BytesIO(pdf_content),
             laparams=laparams
         )
-        return text
+
+        # Strategy 2: More aggressive extraction for tables and forms
+        laparams_aggressive = LAParams(
+            boxes_flow=0.3,
+            word_margin=0.2,
+            char_margin=3.0,
+            line_margin=0.3
+        )
+
+        text2 = extract_text(
+            io.BytesIO(pdf_content),
+            laparams=laparams_aggressive
+        )
+
+        # Combine both extractions, preferring the longer one
+        if len(text2) > len(text1) * 1.1:  # If aggressive extraction is significantly longer
+            logger.info(f"Using aggressive extraction: {len(text2)} vs {len(text1)} characters")
+            return text2
+        else:
+            logger.info(f"Using standard extraction: {len(text1)} characters")
+            return text1
+
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
         raise Exception(f"Failed to extract PDF text: {e}")
@@ -375,33 +397,65 @@ def find_relevant_chunks(query: str, document_data: dict, top_k: int = 5) -> Lis
         return []
 
 def find_text_matches(question: str, document_data: dict) -> List[dict]:
-    """Find chunks containing exact text matches for key terms"""
+    """Find chunks containing exact text matches for key terms with enhanced pattern matching"""
     question_lower = question.lower()
-    key_terms = []
 
-    # Extract key terms from question
-    insurance_terms = [
-        'waiting period', 'grace period', 'premium', 'maternity', 'sum insured',
-        'room rent', 'cataract', 'ayush', 'exclusion', 'organ donor', 'policy term',
-        'pre-existing', 'coverage', 'benefit', 'claim', 'deductible', 'copayment'
-    ]
+    # Enhanced term mapping with variations and synonyms
+    term_patterns = {
+        'waiting period': ['waiting period', 'wait period', 'waiting time', 'wait time', 'moratorium'],
+        'grace period': ['grace period', 'grace time', 'premium grace', 'payment grace'],
+        'premium': ['premium', 'premium payment', 'premium amount', 'premium due'],
+        'maternity': ['maternity', 'pregnancy', 'childbirth', 'delivery', 'natal'],
+        'sum insured': ['sum insured', 'sum assured', 'coverage amount', 'insured amount', 'maximum benefit'],
+        'room rent': ['room rent', 'room charges', 'accommodation', 'hospital room'],
+        'cataract': ['cataract', 'eye surgery', 'lens replacement'],
+        'ayush': ['ayush', 'ayurvedic', 'homeopathic', 'unani', 'siddha', 'alternative medicine'],
+        'exclusion': ['exclusion', 'excluded', 'not covered', 'limitation', 'restriction'],
+        'organ donor': ['organ donor', 'donor', 'transplant', 'organ donation'],
+        'policy term': ['policy term', 'policy period', 'term of policy', 'policy duration'],
+        'pre-existing': ['pre-existing', 'pre existing', 'existing disease', 'prior condition'],
+        'coverage': ['coverage', 'cover', 'benefit', 'protection'],
+        'claim': ['claim', 'reimbursement', 'settlement'],
+        'deductible': ['deductible', 'co-payment', 'copayment', 'co pay']
+    }
 
-    for term in insurance_terms:
-        if term in question_lower:
-            key_terms.append(term)
+    # Find relevant patterns from question
+    relevant_patterns = []
+    for main_term, variations in term_patterns.items():
+        for variation in variations:
+            if variation in question_lower:
+                relevant_patterns.extend(variations)
+                break
 
-    # Find chunks containing these terms
+    # If no specific patterns found, extract key words
+    if not relevant_patterns:
+        question_words = question_lower.split()
+        relevant_patterns = [word for word in question_words if len(word) > 3]
+
+    # Find chunks containing these patterns
     matching_chunks = []
     for chunk in document_data['chunks']:
         chunk_text_lower = chunk['text'].lower()
-        for term in key_terms:
-            if term in chunk_text_lower:
-                matching_chunks.append({
-                    'chunk': chunk,
-                    'matched_term': term,
-                    'text_score': 1.0
-                })
-                break
+        match_score = 0
+        matched_terms = []
+
+        for pattern in relevant_patterns:
+            if pattern in chunk_text_lower:
+                match_score += 1
+                matched_terms.append(pattern)
+
+        if match_score > 0:
+            # Calculate relevance score based on number of matches
+            relevance_score = min(1.0, match_score / len(relevant_patterns))
+            matching_chunks.append({
+                'chunk': chunk,
+                'matched_terms': matched_terms,
+                'text_score': relevance_score,
+                'match_count': match_score
+            })
+
+    # Sort by relevance score
+    matching_chunks.sort(key=lambda x: x['text_score'], reverse=True)
 
     return matching_chunks
 
