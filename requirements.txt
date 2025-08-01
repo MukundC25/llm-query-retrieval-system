@@ -16,3 +16,7 @@ requests
 # Essential utilities
 python-dotenv
 httpx
+
+# ML and embeddings
+numpy
+scikit-learn
