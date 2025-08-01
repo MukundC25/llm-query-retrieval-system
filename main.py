@@ -24,26 +24,7 @@ from pdfminer.high_level import extract_text
 from pdfminer.layout import LAParams
 from docx import Document
 
-# Additional PDF processing libraries
-try:
-    import fitz  # PyMuPDF
-    PYMUPDF_AVAILABLE = True
-except ImportError:
-    PYMUPDF_AVAILABLE = False
-
-try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
-
-# Vector storage
-try:
-    import faiss
-    import pickle
-    FAISS_AVAILABLE = True
-except ImportError:
-    FAISS_AVAILABLE = False
+# Keep it simple - no additional dependencies
 
 # AI imports
 import google.generativeai as genai
@@ -211,11 +192,9 @@ async def download_document(url: str) -> bytes:
         raise Exception(f"Failed to download document: {e}")
 
 def extract_text_from_pdf(pdf_content: bytes) -> str:
-    """Extract text from PDF content with multiple strategies for maximum accuracy"""
-    extracted_texts = []
-
-    # Strategy 1: PDFMiner (best for text-heavy documents)
+    """Extract text from PDF content using PDFMiner with optimized settings"""
     try:
+        # Use optimized LAParams for better text extraction
         laparams = LAParams(
             boxes_flow=0.5,
             word_margin=0.1,
@@ -223,88 +202,17 @@ def extract_text_from_pdf(pdf_content: bytes) -> str:
             line_margin=0.5
         )
 
-        text1 = extract_text(
+        text = extract_text(
             io.BytesIO(pdf_content),
             laparams=laparams
         )
-        extracted_texts.append(("PDFMiner", text1))
-        logger.info(f"PDFMiner extracted {len(text1)} characters")
+
+        logger.info(f"Extracted {len(text)} characters from PDF")
+        return text
 
     except Exception as e:
-        logger.warning(f"PDFMiner extraction failed: {e}")
-
-    # Strategy 2: PyMuPDF (best for complex layouts)
-    if PYMUPDF_AVAILABLE:
-        try:
-            doc = fitz.open(stream=pdf_content, filetype="pdf")
-            text2 = ""
-            for page in doc:
-                text2 += page.get_text()
-            doc.close()
-            extracted_texts.append(("PyMuPDF", text2))
-            logger.info(f"PyMuPDF extracted {len(text2)} characters")
-
-        except Exception as e:
-            logger.warning(f"PyMuPDF extraction failed: {e}")
-
-    # Strategy 3: pdfplumber (best for tables and structured data)
-    if PDFPLUMBER_AVAILABLE:
-        try:
-            with pdfplumber.open(io.BytesIO(pdf_content)) as pdf:
-                text3 = ""
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text3 += page_text + "\n"
-
-                    # Also extract tables
-                    tables = page.extract_tables()
-                    for table in tables:
-                        for row in table:
-                            if row:
-                                text3 += " | ".join([cell or "" for cell in row]) + "\n"
-
-            extracted_texts.append(("pdfplumber", text3))
-            logger.info(f"pdfplumber extracted {len(text3)} characters")
-
-        except Exception as e:
-            logger.warning(f"pdfplumber extraction failed: {e}")
-
-    # Choose the best extraction (longest text with good content)
-    if not extracted_texts:
-        raise Exception("All PDF extraction methods failed")
-
-    # Score each extraction based on length and content quality
-    best_text = ""
-    best_score = 0
-
-    for method, text in extracted_texts:
-        # Score based on length and presence of insurance keywords
-        length_score = len(text)
-        keyword_score = 0
-
-        insurance_keywords = [
-            'policy', 'premium', 'coverage', 'benefit', 'claim', 'insured',
-            'waiting period', 'grace period', 'exclusion', 'deductible'
-        ]
-
-        text_lower = text.lower()
-        for keyword in insurance_keywords:
-            keyword_score += text_lower.count(keyword) * 100
-
-        total_score = length_score + keyword_score
-
-        logger.info(f"{method}: {len(text)} chars, score: {total_score}")
-
-        if total_score > best_score:
-            best_score = total_score
-            best_text = text
-
-    if not best_text:
-        best_text = extracted_texts[0][1]  # Fallback to first extraction
-
-    logger.info(f"Selected best extraction with {len(best_text)} characters")
-    return best_text
+        logger.error(f"Error extracting text from PDF: {e}")
+        raise Exception(f"Failed to extract PDF text: {e}")
 
 def extract_text_from_docx(docx_content: bytes) -> str:
     """Extract text from DOCX content"""
@@ -337,108 +245,42 @@ def clean_text(text: str) -> str:
     text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)]', ' ', text)
     return text.strip()
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 200) -> List[dict]:
-    """Split text into overlapping chunks optimized for insurance documents with sliding window approach"""
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[dict]:
+    """Split text into overlapping chunks with smart boundary detection"""
     chunks = []
     text_length = len(text)
-
-    # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-    target_tokens = 300
-    target_chars = target_tokens * 4  # ~1200 characters
-    overlap_tokens = 50
-    overlap_chars = overlap_tokens * 4  # ~200 characters
-
-    # Use the provided chunk_size or calculated target
-    actual_chunk_size = min(chunk_size, target_chars)
-    actual_overlap = min(overlap, overlap_chars)
-
-    # Insurance-specific section markers for better chunking
-    section_markers = [
-        'SECTION', 'CLAUSE', 'ARTICLE', 'PART', 'CHAPTER', 'SCHEDULE',
-        'WAITING PERIOD', 'GRACE PERIOD', 'COVERAGE', 'EXCLUSION', 'EXCLUSIONS',
-        'BENEFIT', 'BENEFITS', 'PREMIUM', 'CLAIM', 'CLAIMS', 'DEFINITION', 'DEFINITIONS',
-        'TERMS AND CONDITIONS', 'POLICY TERMS', 'GENERAL CONDITIONS',
-        'MATERNITY', 'PRE-EXISTING', 'AYUSH', 'ROOM RENT', 'SUM INSURED'
-    ]
-
     start = 0
     chunk_id = 0
 
     while start < text_length:
-        end = min(start + actual_chunk_size, text_length)
+        end = min(start + chunk_size, text_length)
 
-        # Smart boundary detection for better context preservation
+        # Try to break at sentence boundary for better semantic coherence
         if end < text_length:
-            best_break = end
-
-            # Strategy 1: Look for section markers (highest priority)
-            for marker in section_markers:
-                marker_pos = text.upper().rfind(marker, max(start + 100, end - 400), end)
-                if marker_pos > start + 100:
-                    # Find the start of the line containing the marker
-                    line_start = text.rfind('\n', start, marker_pos)
-                    if line_start > start:
-                        best_break = line_start
-                        break
-
-            # Strategy 2: Look for paragraph breaks
-            if best_break == end:
-                para_break = text.rfind('\n\n', max(start + 100, end - 300), end)
-                if para_break > start + 100:
-                    best_break = para_break + 2
-
-            # Strategy 3: Look for sentence boundaries
-            if best_break == end:
-                for punct in ['. ', '.\n', '! ', '!\n', '? ', '?\n']:
-                    sentence_end = text.rfind(punct, max(start + 100, end - 200), end)
-                    if sentence_end > start + 100:
-                        best_break = sentence_end + len(punct)
-                        break
-
-            # Strategy 4: Look for any line break
-            if best_break == end:
-                line_break = text.rfind('\n', max(start + 100, end - 100), end)
-                if line_break > start + 100:
-                    best_break = line_break + 1
-
-            end = best_break
+            # Look for sentence endings within the last 200 characters
+            for punct in ['. ', '.\n', '! ', '!\n', '? ', '?\n']:
+                sentence_end = text.rfind(punct, max(start, end - 200), end)
+                if sentence_end > start:
+                    end = sentence_end + len(punct)
+                    break
 
         chunk_text = text[start:end].strip()
 
-        # Only include meaningful chunks
-        if chunk_text and len(chunk_text) > 50:
-            # Calculate chunk quality score
-            quality_score = 0
-            chunk_lower = chunk_text.lower()
-
-            # Bonus for insurance keywords
-            insurance_keywords = [
-                'policy', 'premium', 'coverage', 'benefit', 'claim', 'insured',
-                'waiting period', 'grace period', 'exclusion', 'deductible',
-                'maternity', 'pre-existing', 'ayush', 'room rent', 'sum insured'
-            ]
-
-            for keyword in insurance_keywords:
-                if keyword in chunk_lower:
-                    quality_score += 1
-
+        if chunk_text and len(chunk_text) > 50:  # Only include meaningful chunks
             chunks.append({
                 'id': chunk_id,
                 'text': chunk_text,
                 'start_pos': start,
                 'end_pos': end,
-                'length': len(chunk_text),
-                'quality_score': quality_score,
-                'token_estimate': len(chunk_text) // 4
+                'length': len(chunk_text)
             })
             chunk_id += 1
 
-        # Sliding window with overlap
-        start = end - actual_overlap
+        # Move start position with overlap
+        start = end - overlap
         if start >= text_length:
             break
 
-    logger.info(f"Created {len(chunks)} chunks with sliding window (size: {actual_chunk_size}, overlap: {actual_overlap})")
     return chunks
 
 async def process_document(document_url: str) -> dict:
@@ -656,124 +498,61 @@ ANSWER:"""
         logger.error(f"Error generating answer: {e}")
         return f"Error: Unable to generate answer - {str(e)}"
 
-# Document cache and pre-indexed documents
+# Document cache
 document_cache = {}
 
-# Pre-indexed sample documents for HackRX evaluation
-SAMPLE_DOCUMENTS = {
-    "BAJHLIP23020V012223": "https://hackrx.blob.core.windows.net/assets/hackrx_6/policies/BAJHLIP23020V012223.pdf?sv=2023-01-03&st=2025-07-30T06%3A46%3A49Z&se=2025-09-01T06%3A46%3A00Z&sr=c&sp=rl&sig=9szykRKdGYj0BVm1skP%2BX8N9%2FRENEn2k7MQPUp33jyQ%3D",
-    "CHOTGDP23004V012223": "https://hackrx.blob.core.windows.net/assets/hackrx_6/policies/CHOTGDP23004V012223.pdf?sv=2023-01-03&st=2025-07-30T06%3A46%3A49Z&se=2025-09-01T06%3A46%3A00Z&sr=c&sp=rl&sig=9szykRKdGYj0BVm1skP%2BX8N9%2FRENEn2k7MQPUp33jyQ%3D",
-    "EDLHLGA23009V012223": "https://hackrx.blob.core.windows.net/assets/hackrx_6/policies/EDLHLGA23009V012223.pdf?sv=2023-01-03&st=2025-07-30T06%3A46%3A49Z&se=2025-09-01T06%3A46%3A00Z&sr=c&sp=rl&sig=9szykRKdGYj0BVm1skP%2BX8N9%2FRENEn2k7MQPUp33jyQ%3D",
-    "HDFHLIP23024V072223": "https://hackrx.blob.core.windows.net/assets/hackrx_6/policies/HDFHLIP23024V072223.pdf?sv=2023-01-03&st=2025-07-30T06%3A46%3A49Z&se=2025-09-01T06%3A46%3A00Z&sr=c&sp=rl&sig=9szykRKdGYj0BVm1skP%2BX8N9%2FRENEn2k7MQPUp33jyQ%3D",
-    "ICIHLIP22012V012223": "https://hackrx.blob.core.windows.net/assets/hackrx_6/policies/ICIHLIP22012V012223.pdf?sv=2023-01-03&st=2025-07-30T06%3A46%3A49Z&se=2025-09-01T06%3A46%3A00Z&sr=c&sp=rl&sig=9szykRKdGYj0BVm1skP%2BX8N9%2FRENEn2k7MQPUp33jyQ%3D"
-}
-
-# In-memory vector store for pre-indexed documents
-vector_store = {}
-
-async def pre_index_sample_documents():
-    """Pre-index all sample documents for fast webhook responses"""
-    logger.info("Starting pre-indexing of sample documents...")
-
-    for doc_id, doc_url in SAMPLE_DOCUMENTS.items():
-        try:
-            if doc_url not in document_cache:
-                logger.info(f"Pre-indexing document: {doc_id}")
-                document_data = await process_document(doc_url)
-                document_cache[doc_url] = document_data
-
-                # Store in vector store for fast retrieval
-                vector_store[doc_url] = {
-                    'doc_id': doc_id,
-                    'chunks': document_data['chunks'],
-                    'embeddings': document_data.get('embeddings', [])
-                }
-
-                logger.info(f"Successfully pre-indexed {doc_id}: {document_data['total_chunks']} chunks")
-            else:
-                logger.info(f"Document {doc_id} already cached")
-
-        except Exception as e:
-            logger.error(f"Failed to pre-index {doc_id}: {e}")
-
-    logger.info(f"Pre-indexing completed. {len(vector_store)} documents ready.")
-
-# Initialize pre-indexing on startup
-async def startup_event():
-    """Initialize the application"""
-    try:
-        await pre_index_sample_documents()
-    except Exception as e:
-        logger.error(f"Pre-indexing failed: {e}")
-        # Continue without pre-indexing - documents will be processed on-demand
-
 async def process_queries(document_url: str, questions: List[str]) -> List[str]:
-    """Process all queries for a document using enhanced hybrid search with pre-indexing"""
+    """Process all queries for a document using hybrid search"""
     try:
-        # Trigger pre-indexing if not done yet
-        if not vector_store and document_url in SAMPLE_DOCUMENTS.values():
-            logger.info("Triggering pre-indexing for sample documents...")
-            await pre_index_sample_documents()
-
         # Check cache first
         if document_url in document_cache:
             logger.info("Using cached document data")
             document_data = document_cache[document_url]
         else:
-            # Process document with enhanced extraction
-            logger.info("Processing new document with enhanced extraction")
+            # Process document
+            logger.info("Processing new document")
             document_data = await process_document(document_url)
             document_cache[document_url] = document_data
 
-        # Answer all questions using enhanced hybrid search
+        # Answer all questions using hybrid search
         answers = []
         for i, question in enumerate(questions):
             try:
                 logger.info(f"Processing question {i+1}/{len(questions)}: {question}")
 
-                # Strategy 1: Find relevant chunks using semantic similarity
-                semantic_chunks = find_relevant_chunks(question, document_data, top_k=4)
+                # Find relevant chunks using semantic similarity
+                semantic_chunks = find_relevant_chunks(question, document_data, top_k=3)
 
-                # Strategy 2: Find chunks with enhanced text pattern matching
+                # Find chunks with text pattern matching
                 text_match_chunks = find_text_matches(question, document_data)
 
-                # Strategy 3: Combine and rank chunks by relevance
+                # Combine chunks
                 all_chunks = []
                 chunk_ids_seen = set()
 
-                # Add semantic chunks with their scores
+                # Add semantic chunks
                 for chunk_data in semantic_chunks:
                     chunk_id = chunk_data.get('id', id(chunk_data))
                     if chunk_id not in chunk_ids_seen:
                         all_chunks.append(chunk_data)
                         chunk_ids_seen.add(chunk_id)
 
-                # Add text match chunks with their scores
+                # Add text match chunks
                 for match_data in text_match_chunks:
                     chunk = match_data['chunk']
                     chunk_id = chunk.get('id', id(chunk))
                     if chunk_id not in chunk_ids_seen:
                         chunk_with_score = chunk.copy()
                         chunk_with_score['text_score'] = match_data['text_score']
-                        chunk_with_score['match_count'] = match_data.get('match_count', 1)
                         all_chunks.append(chunk_with_score)
                         chunk_ids_seen.add(chunk_id)
 
-                # Sort by combined relevance (semantic + text + quality)
-                def calculate_relevance(chunk):
-                    semantic_score = chunk.get('similarity_score', 0) * 0.6
-                    text_score = chunk.get('text_score', 0) * 0.3
-                    quality_score = chunk.get('quality_score', 0) * 0.1
-                    return semantic_score + text_score + quality_score
-
-                all_chunks.sort(key=calculate_relevance, reverse=True)
-
-                # Select top 5 most relevant chunks
+                # Limit to top 5 chunks
                 relevant_chunks = all_chunks[:5]
 
-                logger.info(f"Found {len(relevant_chunks)} relevant chunks (semantic: {len(semantic_chunks)}, text: {len(text_match_chunks)})")
+                logger.info(f"Found {len(relevant_chunks)} relevant chunks")
 
-                # Generate answer with enhanced context
+                # Generate answer
                 answer = await answer_question_with_context(question, relevant_chunks)
                 answers.append(answer)
 
