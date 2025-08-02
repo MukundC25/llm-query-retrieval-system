@@ -238,11 +238,39 @@ def extract_text_from_docx(docx_content: bytes) -> str:
         raise Exception(f"Failed to extract DOCX text: {e}")
 
 def clean_text(text: str) -> str:
-    """Clean extracted text"""
-    # Remove excessive whitespace
+    """Enhanced text cleaning and normalization for better processing"""
+    # Remove excessive whitespace and normalize line breaks
     text = re.sub(r'\s+', ' ', text)
-    # Remove special characters but keep basic punctuation
-    text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)]', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+
+    # Fix common PDF extraction issues
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between camelCase
+    text = re.sub(r'(\d)([A-Za-z])', r'\1 \2', text)  # Space between numbers and letters
+    text = re.sub(r'([A-Za-z])(\d)', r'\1 \2', text)  # Space between letters and numbers
+
+    # Normalize insurance-specific terms
+    insurance_normalizations = {
+        r'waitingperiod': 'waiting period',
+        r'graceperiod': 'grace period',
+        r'suminsured': 'sum insured',
+        r'roomrent': 'room rent',
+        r'preexisting': 'pre-existing',
+        r'co-payment': 'copayment',
+        r'co payment': 'copayment'
+    }
+
+    for pattern, replacement in insurance_normalizations.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+    # Remove special characters but keep important punctuation
+    text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)\[\]\/\%\$]', ' ', text)
+
+    # Normalize spacing around punctuation
+    text = re.sub(r'\s*([\.,:;!?])\s*', r'\1 ', text)
+
+    # Remove extra spaces
+    text = re.sub(r'\s+', ' ', text)
+
     return text.strip()
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[dict]:
@@ -331,31 +359,61 @@ async def process_document(document_url: str) -> dict:
         raise Exception(f"Document processing failed: {e}")
 
 def find_relevant_chunks(query: str, document_data: dict, top_k: int = 5) -> List[dict]:
-    """Find most relevant chunks using semantic similarity"""
+    """Find most relevant chunks using enhanced semantic similarity with reranking"""
     try:
         # Generate embedding for the query
         query_embedding = generate_embeddings([query])[0]
+        query_lower = query.lower()
 
         # Calculate similarities with all chunks
         similarities = []
         for chunk in document_data['chunks']:
             if 'embedding' in chunk:
-                similarity = cosine_similarity_manual(query_embedding, chunk['embedding'])
+                # Base semantic similarity
+                semantic_similarity = cosine_similarity_manual(query_embedding, chunk['embedding'])
+
+                # Enhanced scoring with multiple factors
+                chunk_text_lower = chunk['text'].lower()
+
+                # Keyword overlap bonus
+                query_words = set(query_lower.split())
+                chunk_words = set(chunk_text_lower.split())
+                keyword_overlap = len(query_words.intersection(chunk_words)) / max(len(query_words), 1)
+
+                # Length penalty for very short chunks
+                length_factor = min(1.0, len(chunk['text']) / 100)
+
+                # Insurance domain relevance bonus
+                domain_keywords = ['policy', 'coverage', 'benefit', 'claim', 'premium', 'insured',
+                                 'waiting', 'grace', 'exclusion', 'maternity', 'ayush', 'room rent']
+                domain_score = sum(1 for keyword in domain_keywords if keyword in chunk_text_lower) / len(domain_keywords)
+
+                # Combined score
+                final_score = (
+                    semantic_similarity * 0.6 +
+                    keyword_overlap * 0.25 +
+                    domain_score * 0.1 +
+                    length_factor * 0.05
+                )
+
                 similarities.append({
                     'chunk': chunk,
-                    'similarity': similarity
+                    'similarity': final_score,
+                    'semantic_sim': semantic_similarity,
+                    'keyword_overlap': keyword_overlap
                 })
 
-        # Sort by similarity and return top_k
+        # Sort by enhanced similarity and return top_k
         similarities.sort(key=lambda x: x['similarity'], reverse=True)
 
         relevant_chunks = []
         for item in similarities[:top_k]:
             chunk_data = item['chunk'].copy()
             chunk_data['similarity_score'] = item['similarity']
+            chunk_data['semantic_score'] = item['semantic_sim']
             relevant_chunks.append(chunk_data)
 
-        logger.info(f"Found {len(relevant_chunks)} relevant chunks with similarities: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
+        logger.info(f"Found {len(relevant_chunks)} relevant chunks with enhanced scores: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
         return relevant_chunks
 
     except Exception as e:
@@ -425,9 +483,15 @@ def find_text_matches(question: str, document_data: dict) -> List[dict]:
 
     return matching_chunks
 
-async def answer_question_with_context(question: str, relevant_chunks: List[dict]) -> str:
-    """Generate answer using Gemini AI with relevant context chunks"""
+async def answer_question_with_context(question: str, relevant_chunks: List[dict], document_url: str = "") -> str:
+    """Generate answer using Gemini AI with relevant context chunks and caching"""
     try:
+        # Check cache first to save API quota
+        if document_url:
+            cached_answer = get_cached_response(document_url, question)
+            if cached_answer:
+                return cached_answer
+
         model = get_gemini_model()
 
         if model is None:
@@ -436,40 +500,62 @@ async def answer_question_with_context(question: str, relevant_chunks: List[dict
         if not relevant_chunks:
             return "This information is not available in the provided document."
 
-        # Prepare context from relevant chunks
+        # Smart context preparation with merging and optimization
         context_parts = []
-        for i, chunk in enumerate(relevant_chunks):
+        total_length = 0
+        max_context_length = 4000  # Keep within token limits
+
+        # Sort chunks by relevance and merge adjacent ones if beneficial
+        sorted_chunks = sorted(relevant_chunks, key=lambda x: x.get('similarity_score', 0), reverse=True)
+
+        for i, chunk in enumerate(sorted_chunks):
             similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
-            context_parts.append(f"[Section {i+1} - Relevance: {similarity:.2f}]\n{chunk['text']}\n")
+            chunk_text = chunk['text']
+
+            # Skip very low relevance chunks unless we have few chunks
+            if similarity < 0.1 and len(sorted_chunks) > 3:
+                continue
+
+            # Check if adding this chunk would exceed context limit
+            if total_length + len(chunk_text) > max_context_length and len(context_parts) > 0:
+                break
+
+            context_parts.append(f"[Document Section {i+1} - Relevance: {similarity:.2f}]\n{chunk_text}\n")
+            total_length += len(chunk_text)
 
         context = "\n".join(context_parts)
+        logger.info(f"Prepared context with {len(context_parts)} sections, total length: {total_length} chars")
 
-        # Enhanced prompt with strict instructions for accuracy
-        prompt = f"""You are an insurance policy assistant. Answer using ONLY the given document content. Do not use external knowledge.
+        # Enhanced prompt with better context management and accuracy focus
+        prompt = f"""You are an expert insurance document analyst. Your task is to provide accurate, specific answers based ONLY on the provided document sections.
 
-DOCUMENT SECTIONS:
+DOCUMENT CONTEXT:
 {context}
 
-QUESTION: {question}
+USER QUESTION: {question}
 
-CRITICAL INSTRUCTIONS:
-1. Read through ALL document sections carefully
-2. Answer ONLY based on information explicitly stated in the document sections above
-3. If you find relevant information, provide a complete answer with:
-   - Exact numbers, percentages, time periods
-   - Specific conditions and requirements
-   - Reference to relevant sections when possible
-4. For insurance-specific queries, look for:
-   - Waiting periods: Look for "waiting period", "wait", "moratorium"
-   - Grace periods: Look for "grace period", "grace time", "premium grace"
-   - Coverage amounts: Look for "sum insured", "coverage limit", "maximum benefit"
-   - Exclusions: Look for "excluded", "not covered", "limitation"
-   - Maternity: Look for "maternity", "pregnancy", "childbirth"
-   - AYUSH: Look for "AYUSH", "Ayurvedic", "Homeopathic", "alternative medicine"
-   - Room rent: Look for "room rent", "room charges", "accommodation"
-5. If the specific information is NOT found in the document sections, respond exactly: "This information is not available in the provided document"
-6. Do NOT make assumptions or use general insurance knowledge
-7. Quote relevant text when providing specific details
+ANALYSIS FRAMEWORK:
+1. SCAN ALL SECTIONS: Carefully examine each document section for relevant information
+2. IDENTIFY KEY TERMS: Look for specific terms related to the question
+3. EXTRACT PRECISE DETAILS: Find exact numbers, percentages, conditions, and requirements
+4. CROSS-REFERENCE: Check if information spans multiple sections for complete context
+
+RESPONSE GUIDELINES:
+✓ PROVIDE SPECIFIC DETAILS: Include exact figures, time periods, conditions
+✓ QUOTE RELEVANT TEXT: Use direct quotes when providing specific information
+✓ REFERENCE SECTIONS: Mention which section contains the information
+✓ BE COMPREHENSIVE: If information is found, provide complete details
+✓ STAY FACTUAL: Only use information explicitly stated in the document
+
+SEARCH PRIORITIES FOR INSURANCE QUERIES:
+- Waiting periods → "waiting period", "wait", "moratorium", "cooling period"
+- Grace periods → "grace period", "grace time", "premium grace", "payment grace"
+- Coverage limits → "sum insured", "coverage amount", "maximum benefit", "limit"
+- Exclusions → "excluded", "not covered", "limitation", "restriction", "exception"
+- Benefits → "covered", "benefit", "included", "eligible"
+- Conditions → "subject to", "provided that", "conditions", "requirements"
+
+IMPORTANT: If the specific information is not found in any document section, respond: "This information is not available in the provided document."
 
 ANSWER:"""
 
@@ -490,6 +576,10 @@ ANSWER:"""
                 if best_similarity > 0.2:  # Lower threshold for text matches
                     answer += f"\n\n[Source: Policy document section with {best_similarity:.1%} relevance]"
 
+            # Cache the response for future use
+            if document_url and "error" not in answer.lower():
+                cache_response(document_url, question, answer)
+
             return answer
         else:
             return "Error: No response generated from AI service"
@@ -498,8 +588,45 @@ ANSWER:"""
         logger.error(f"Error generating answer: {e}")
         return f"Error: Unable to generate answer - {str(e)}"
 
-# Document cache
+# Document cache and response cache
 document_cache = {}
+response_cache = {}  # Cache for question-answer pairs to optimize API usage
+
+def get_cache_key(document_url: str, question: str) -> str:
+    """Generate cache key for question-document combination"""
+    import hashlib
+    combined = f"{document_url}:{question.lower().strip()}"
+    return hashlib.md5(combined.encode()).hexdigest()
+
+def cache_response(document_url: str, question: str, answer: str):
+    """Cache response for future use"""
+    cache_key = get_cache_key(document_url, question)
+    response_cache[cache_key] = {
+        'answer': answer,
+        'timestamp': time.time()
+    }
+
+    # Keep cache size manageable (max 100 entries)
+    if len(response_cache) > 100:
+        # Remove oldest entries
+        oldest_keys = sorted(response_cache.keys(),
+                           key=lambda k: response_cache[k]['timestamp'])[:20]
+        for key in oldest_keys:
+            del response_cache[key]
+
+def get_cached_response(document_url: str, question: str) -> str:
+    """Get cached response if available"""
+    cache_key = get_cache_key(document_url, question)
+    if cache_key in response_cache:
+        cached = response_cache[cache_key]
+        # Cache valid for 1 hour
+        if time.time() - cached['timestamp'] < 3600:
+            logger.info(f"Using cached response for question: {question[:50]}...")
+            return cached['answer']
+        else:
+            # Remove expired cache
+            del response_cache[cache_key]
+    return None
 
 async def process_queries(document_url: str, questions: List[str]) -> List[str]:
     """Process all queries for a document using hybrid search"""
@@ -520,24 +647,24 @@ async def process_queries(document_url: str, questions: List[str]) -> List[str]:
             try:
                 logger.info(f"Processing question {i+1}/{len(questions)}: {question}")
 
-                # Find relevant chunks using semantic similarity
-                semantic_chunks = find_relevant_chunks(question, document_data, top_k=3)
+                # Enhanced chunk selection with better ranking
+                semantic_chunks = find_relevant_chunks(question, document_data, top_k=4)
 
                 # Find chunks with text pattern matching
                 text_match_chunks = find_text_matches(question, document_data)
 
-                # Combine chunks
+                # Smart chunk combination and ranking
                 all_chunks = []
                 chunk_ids_seen = set()
 
-                # Add semantic chunks
+                # Add semantic chunks with enhanced scoring
                 for chunk_data in semantic_chunks:
                     chunk_id = chunk_data.get('id', id(chunk_data))
                     if chunk_id not in chunk_ids_seen:
                         all_chunks.append(chunk_data)
                         chunk_ids_seen.add(chunk_id)
 
-                # Add text match chunks
+                # Add text match chunks with their scores
                 for match_data in text_match_chunks:
                     chunk = match_data['chunk']
                     chunk_id = chunk.get('id', id(chunk))
@@ -547,13 +674,19 @@ async def process_queries(document_url: str, questions: List[str]) -> List[str]:
                         all_chunks.append(chunk_with_score)
                         chunk_ids_seen.add(chunk_id)
 
-                # Limit to top 5 chunks
-                relevant_chunks = all_chunks[:5]
+                # Sort by combined relevance and select top chunks
+                def get_chunk_score(chunk):
+                    semantic_score = chunk.get('similarity_score', 0)
+                    text_score = chunk.get('text_score', 0)
+                    return max(semantic_score, text_score)  # Take the best score
 
-                logger.info(f"Found {len(relevant_chunks)} relevant chunks")
+                all_chunks.sort(key=get_chunk_score, reverse=True)
+                relevant_chunks = all_chunks[:4]  # Limit to top 4 for better context
 
-                # Generate answer
-                answer = await answer_question_with_context(question, relevant_chunks)
+                logger.info(f"Selected {len(relevant_chunks)} top-ranked chunks")
+
+                # Generate answer with caching
+                answer = await answer_question_with_context(question, relevant_chunks, document_url)
                 answers.append(answer)
 
                 logger.info(f"Generated answer for Q{i+1}: {answer[:100]}...")
