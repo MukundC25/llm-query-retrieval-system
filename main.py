@@ -17,6 +17,7 @@ import asyncio
 import requests
 import io
 import re
+import hashlib
 from dotenv import load_dotenv
 
 # Document processing imports
@@ -142,7 +143,6 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
 
 def generate_simple_embeddings(texts: List[str]) -> List[List[float]]:
     """Fallback simple embeddings"""
-    import hashlib
     embeddings = []
     for text in texts:
         # Create a simple embedding based on text characteristics
@@ -594,7 +594,6 @@ response_cache = {}  # Cache for question-answer pairs to optimize API usage
 
 def get_cache_key(document_url: str, question: str) -> str:
     """Generate cache key for question-document combination"""
-    import hashlib
     combined = f"{document_url}:{question.lower().strip()}"
     return hashlib.md5(combined.encode()).hexdigest()
 
