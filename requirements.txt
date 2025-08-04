@@ -7,6 +7,8 @@ jinja2
 
 # AI dependencies
 google-generativeai
+sentence-transformers
+torch
 
 # Document processing
 pdfminer.six
@@ -16,3 +18,4 @@ requests
 # Essential utilities
 python-dotenv
 httpx
+numpy

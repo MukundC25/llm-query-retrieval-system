@@ -30,6 +30,15 @@ from docx import Document
 # AI imports
 import google.generativeai as genai
 
+# Enhanced embeddings
+try:
+    from sentence_transformers import SentenceTransformer
+    import numpy as np
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    import numpy as np
+
 # Load environment variables
 load_dotenv()
 
@@ -124,8 +133,13 @@ def get_gemini_model():
     return gemini_model
 
 def generate_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings using Gemini's embedding API"""
+    """Generate embeddings using best available method"""
     try:
+        # Strategy 1: Use sentence-transformers for better quality
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            return generate_sentence_transformer_embeddings(texts)
+
+        # Strategy 2: Use Gemini embeddings
         embeddings = []
         for text in texts:
             # Use Gemini's embedding model
@@ -138,8 +152,99 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
         return embeddings
     except Exception as e:
         logger.error(f"Error generating embeddings: {e}")
-        # Fallback to simple embeddings if Gemini fails
+        # Fallback to simple embeddings if all else fails
         return generate_simple_embeddings(texts)
+
+# Global sentence transformer model
+_sentence_model = None
+
+def get_sentence_transformer_model():
+    """Get or initialize sentence transformer model"""
+    global _sentence_model
+    if _sentence_model is None and SENTENCE_TRANSFORMERS_AVAILABLE:
+        try:
+            # Use a model optimized for semantic search
+            _sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+            logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
+        except Exception as e:
+            logger.error(f"Failed to load sentence transformer model: {e}")
+            return None
+    return _sentence_model
+
+def generate_sentence_transformer_embeddings(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings using sentence-transformers"""
+    try:
+        model = get_sentence_transformer_model()
+        if model is None:
+            return generate_simple_embeddings(texts)
+
+        # Generate embeddings
+        embeddings = model.encode(texts, convert_to_tensor=False, normalize_embeddings=True)
+
+        # Convert to list format
+        if isinstance(embeddings, np.ndarray):
+            embeddings = embeddings.tolist()
+
+        logger.info(f"Generated {len(embeddings)} sentence-transformer embeddings")
+        return embeddings
+
+    except Exception as e:
+        logger.error(f"Error in sentence transformer embeddings: {e}")
+        return generate_simple_embeddings(texts)
+
+def prepare_smart_context(relevant_chunks: List[dict], max_tokens: int = 1000) -> str:
+    """Prepare context with smart chunk merging and token management"""
+    if not relevant_chunks:
+        return ""
+
+    # Sort chunks by relevance
+    sorted_chunks = sorted(relevant_chunks, key=lambda x: x.get('similarity_score', 0), reverse=True)
+
+    # Estimate tokens (rough: 1 token ≈ 4 characters)
+    max_chars = max_tokens * 4
+
+    context_parts = []
+    total_chars = 0
+
+    # Group adjacent chunks if they're from similar positions
+    merged_chunks = []
+    for chunk in sorted_chunks:
+        similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
+
+        # Skip very low relevance chunks
+        if similarity < 0.15 and len(sorted_chunks) > 2:
+            continue
+
+        chunk_text = chunk['text']
+
+        # Try to merge with previous chunk if they're adjacent and similar
+        if (merged_chunks and
+            abs(chunk.get('start_pos', 0) - merged_chunks[-1].get('end_pos', 0)) < 100 and
+            similarity > 0.3):
+            # Merge chunks
+            merged_chunks[-1]['text'] += f"\n{chunk_text}"
+            merged_chunks[-1]['end_pos'] = chunk.get('end_pos', 0)
+            merged_chunks[-1]['similarity_score'] = max(
+                merged_chunks[-1].get('similarity_score', 0), similarity
+            )
+        else:
+            merged_chunks.append(chunk)
+
+    # Build context within token limits
+    for i, chunk in enumerate(merged_chunks):
+        similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
+        chunk_text = chunk['text']
+
+        # Estimate if adding this chunk would exceed limits
+        section_text = f"[Section {i+1} - Relevance: {similarity:.2f}]\n{chunk_text}\n\n"
+
+        if total_chars + len(section_text) > max_chars and len(context_parts) > 0:
+            break
+
+        context_parts.append(section_text)
+        total_chars += len(section_text)
+
+    return "".join(context_parts).strip()
 
 def generate_simple_embeddings(texts: List[str]) -> List[List[float]]:
     """Fallback simple embeddings"""
@@ -182,14 +287,37 @@ def cosine_similarity_manual(vec1: List[float], vec2: List[float]) -> float:
 
 # Document processing functions
 async def download_document(url: str) -> bytes:
-    """Download document from URL"""
+    """Download document from URL or load from local cache"""
     try:
+        # Check if this is a known document that we have locally
+        local_file = get_local_document_path(url)
+        if local_file and os.path.exists(local_file):
+            logger.info(f"Loading document from local cache: {local_file}")
+            with open(local_file, 'rb') as f:
+                return f.read()
+
+        # Download from URL
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         return response.content
     except requests.RequestException as e:
         logger.error(f"Error downloading document from {url}: {e}")
         raise Exception(f"Failed to download document: {e}")
+
+def get_local_document_path(url: str) -> str:
+    """Get local path for known documents"""
+    # Map known URLs to local files
+    url_to_local = {
+        "HDFHLIP23024V072223.pdf": "documents/HDFHLIP23024V072223.pdf",
+        "BAJHLIP23020V012223.pdf": "documents/BAJHLIP23020V012223.pdf"
+    }
+
+    # Check if URL contains any known document identifier
+    for doc_id, local_path in url_to_local.items():
+        if doc_id in url:
+            return local_path
+
+    return None
 
 def extract_text_from_pdf(pdf_content: bytes) -> str:
     """Extract text from PDF content using PDFMiner with optimized settings"""
@@ -359,61 +487,101 @@ async def process_document(document_url: str) -> dict:
         raise Exception(f"Document processing failed: {e}")
 
 def find_relevant_chunks(query: str, document_data: dict, top_k: int = 5) -> List[dict]:
-    """Find most relevant chunks using enhanced semantic similarity with reranking"""
+    """Find most relevant chunks using enhanced reranking with top-3 cosine scores"""
     try:
         # Generate embedding for the query
         query_embedding = generate_embeddings([query])[0]
         query_lower = query.lower()
 
-        # Calculate similarities with all chunks
+        # Phase 1: Calculate base similarities
         similarities = []
         for chunk in document_data['chunks']:
             if 'embedding' in chunk:
                 # Base semantic similarity
                 semantic_similarity = cosine_similarity_manual(query_embedding, chunk['embedding'])
 
-                # Enhanced scoring with multiple factors
-                chunk_text_lower = chunk['text'].lower()
-
-                # Keyword overlap bonus
-                query_words = set(query_lower.split())
-                chunk_words = set(chunk_text_lower.split())
-                keyword_overlap = len(query_words.intersection(chunk_words)) / max(len(query_words), 1)
-
-                # Length penalty for very short chunks
-                length_factor = min(1.0, len(chunk['text']) / 100)
-
-                # Insurance domain relevance bonus
-                domain_keywords = ['policy', 'coverage', 'benefit', 'claim', 'premium', 'insured',
-                                 'waiting', 'grace', 'exclusion', 'maternity', 'ayush', 'room rent']
-                domain_score = sum(1 for keyword in domain_keywords if keyword in chunk_text_lower) / len(domain_keywords)
-
-                # Combined score
-                final_score = (
-                    semantic_similarity * 0.6 +
-                    keyword_overlap * 0.25 +
-                    domain_score * 0.1 +
-                    length_factor * 0.05
-                )
-
                 similarities.append({
                     'chunk': chunk,
-                    'similarity': final_score,
                     'semantic_sim': semantic_similarity,
-                    'keyword_overlap': keyword_overlap
+                    'chunk_text_lower': chunk['text'].lower()
                 })
 
-        # Sort by enhanced similarity and return top_k
-        similarities.sort(key=lambda x: x['similarity'], reverse=True)
+        # Phase 2: Get top-3 by cosine similarity for reranking
+        similarities.sort(key=lambda x: x['semantic_sim'], reverse=True)
+        top_candidates = similarities[:min(10, len(similarities))]  # Get top 10 for reranking
+
+        # Phase 3: Enhanced reranking of top candidates
+        reranked = []
+        for item in top_candidates:
+            chunk = item['chunk']
+            semantic_similarity = item['semantic_sim']
+            chunk_text_lower = item['chunk_text_lower']
+
+            # Enhanced scoring factors
+            query_words = set(query_lower.split())
+            chunk_words = set(chunk_text_lower.split())
+
+            # Keyword overlap score
+            keyword_overlap = len(query_words.intersection(chunk_words)) / max(len(query_words), 1)
+
+            # Exact phrase matching bonus
+            phrase_bonus = 0
+            for word in query_words:
+                if len(word) > 3 and word in chunk_text_lower:
+                    phrase_bonus += 0.1
+
+            # Length quality factor
+            length_factor = min(1.0, len(chunk['text']) / 150)
+
+            # Insurance domain relevance
+            domain_keywords = [
+                'policy', 'coverage', 'benefit', 'claim', 'premium', 'insured',
+                'waiting', 'grace', 'exclusion', 'maternity', 'ayush', 'room rent',
+                'deductible', 'copayment', 'sum insured', 'pre-existing'
+            ]
+            domain_matches = sum(1 for keyword in domain_keywords if keyword in chunk_text_lower)
+            domain_score = min(1.0, domain_matches / 5)  # Normalize to max 1.0
+
+            # Question-specific relevance
+            question_relevance = 0
+            if 'waiting' in query_lower and 'waiting' in chunk_text_lower:
+                question_relevance += 0.2
+            if 'grace' in query_lower and 'grace' in chunk_text_lower:
+                question_relevance += 0.2
+            if 'ayush' in query_lower and 'ayush' in chunk_text_lower:
+                question_relevance += 0.2
+            if 'exclusion' in query_lower and any(term in chunk_text_lower for term in ['exclusion', 'excluded', 'not covered']):
+                question_relevance += 0.2
+
+            # Final reranked score
+            final_score = (
+                semantic_similarity * 0.4 +      # Base semantic similarity
+                keyword_overlap * 0.25 +         # Keyword overlap
+                domain_score * 0.15 +            # Domain relevance
+                question_relevance * 0.15 +      # Question-specific relevance
+                phrase_bonus * 0.05              # Exact phrase bonus
+            )
+
+            reranked.append({
+                'chunk': chunk,
+                'similarity': final_score,
+                'semantic_sim': semantic_similarity,
+                'keyword_overlap': keyword_overlap,
+                'domain_score': domain_score,
+                'question_relevance': question_relevance
+            })
+
+        # Phase 4: Final ranking and selection
+        reranked.sort(key=lambda x: x['similarity'], reverse=True)
 
         relevant_chunks = []
-        for item in similarities[:top_k]:
+        for item in reranked[:top_k]:
             chunk_data = item['chunk'].copy()
             chunk_data['similarity_score'] = item['similarity']
             chunk_data['semantic_score'] = item['semantic_sim']
             relevant_chunks.append(chunk_data)
 
-        logger.info(f"Found {len(relevant_chunks)} relevant chunks with enhanced scores: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
+        logger.info(f"Reranked {len(relevant_chunks)} chunks with scores: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
         return relevant_chunks
 
     except Exception as e:
@@ -500,62 +668,46 @@ async def answer_question_with_context(question: str, relevant_chunks: List[dict
         if not relevant_chunks:
             return "This information is not available in the provided document."
 
-        # Smart context preparation with merging and optimization
-        context_parts = []
-        total_length = 0
-        max_context_length = 4000  # Keep within token limits
+        # Enhanced context preparation with smart merging
+        context = prepare_smart_context(relevant_chunks)
+        logger.info(f"Prepared optimized context: {len(context)} chars")
 
-        # Sort chunks by relevance and merge adjacent ones if beneficial
-        sorted_chunks = sorted(relevant_chunks, key=lambda x: x.get('similarity_score', 0), reverse=True)
+        # Optimized prompt with explicit context guidance
+        prompt = f"""You are a professional insurance policy analyst. Analyze the provided document sections to answer the user's question with maximum accuracy.
 
-        for i, chunk in enumerate(sorted_chunks):
-            similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
-            chunk_text = chunk['text']
-
-            # Skip very low relevance chunks unless we have few chunks
-            if similarity < 0.1 and len(sorted_chunks) > 3:
-                continue
-
-            # Check if adding this chunk would exceed context limit
-            if total_length + len(chunk_text) > max_context_length and len(context_parts) > 0:
-                break
-
-            context_parts.append(f"[Document Section {i+1} - Relevance: {similarity:.2f}]\n{chunk_text}\n")
-            total_length += len(chunk_text)
-
-        context = "\n".join(context_parts)
-        logger.info(f"Prepared context with {len(context_parts)} sections, total length: {total_length} chars")
-
-        # Enhanced prompt with better context management and accuracy focus
-        prompt = f"""You are an expert insurance document analyst. Your task is to provide accurate, specific answers based ONLY on the provided document sections.
-
-DOCUMENT CONTEXT:
+DOCUMENT SECTIONS:
 {context}
 
-USER QUESTION: {question}
+QUESTION: {question}
 
-ANALYSIS FRAMEWORK:
-1. SCAN ALL SECTIONS: Carefully examine each document section for relevant information
-2. IDENTIFY KEY TERMS: Look for specific terms related to the question
-3. EXTRACT PRECISE DETAILS: Find exact numbers, percentages, conditions, and requirements
-4. CROSS-REFERENCE: Check if information spans multiple sections for complete context
+CRITICAL ANALYSIS INSTRUCTIONS:
+1. READ EVERY SECTION: Thoroughly examine all provided document sections
+2. IDENTIFY RELEVANT INFORMATION: Look for content directly related to the question
+3. EXTRACT SPECIFIC DETAILS: Find exact numbers, percentages, time periods, conditions
+4. SYNTHESIZE INFORMATION: Combine relevant details from multiple sections if needed
 
-RESPONSE GUIDELINES:
-✓ PROVIDE SPECIFIC DETAILS: Include exact figures, time periods, conditions
-✓ QUOTE RELEVANT TEXT: Use direct quotes when providing specific information
-✓ REFERENCE SECTIONS: Mention which section contains the information
-✓ BE COMPREHENSIVE: If information is found, provide complete details
-✓ STAY FACTUAL: Only use information explicitly stated in the document
+RESPONSE REQUIREMENTS:
+✓ BE SPECIFIC: Include exact figures, dates, percentages, and conditions
+✓ QUOTE DIRECTLY: Use exact text from the document when providing details
+✓ REFERENCE SOURCES: Mention which section contains the information
+✓ BE COMPLETE: Provide comprehensive answers when information is available
+✓ STAY ACCURATE: Only use information explicitly stated in the document
 
-SEARCH PRIORITIES FOR INSURANCE QUERIES:
-- Waiting periods → "waiting period", "wait", "moratorium", "cooling period"
-- Grace periods → "grace period", "grace time", "premium grace", "payment grace"
-- Coverage limits → "sum insured", "coverage amount", "maximum benefit", "limit"
-- Exclusions → "excluded", "not covered", "limitation", "restriction", "exception"
-- Benefits → "covered", "benefit", "included", "eligible"
-- Conditions → "subject to", "provided that", "conditions", "requirements"
+INSURANCE TERMINOLOGY GUIDE:
+- Waiting Period: Time before coverage begins for specific conditions
+- Grace Period: Additional time allowed for premium payment
+- Sum Insured: Maximum amount payable under the policy
+- Exclusions: Conditions or treatments not covered
+- Pre-existing Disease: Medical conditions existing before policy start
+- AYUSH: Alternative medicine systems (Ayurveda, Yoga, Unani, Siddha, Homeopathy)
+- Room Rent: Daily hospital accommodation charges
+- Co-payment/Deductible: Amount paid by insured before insurance coverage
 
-IMPORTANT: If the specific information is not found in any document section, respond: "This information is not available in the provided document."
+ANSWER FORMAT:
+- Start with a direct answer to the question
+- Provide specific details with exact figures
+- Quote relevant policy text when applicable
+- If information is not found, state: "This information is not available in the provided document"
 
 ANSWER:"""
 
