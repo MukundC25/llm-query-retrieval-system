@@ -9,9 +9,10 @@ import requests
 import re
 from dotenv import load_dotenv
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import google.generativeai as genai
 
@@ -49,6 +50,9 @@ app = FastAPI(
     description="Minimal working system for HackRX 2025",
     version="1.0.0"
 )
+
+# Templates configuration
+templates = Jinja2Templates(directory="templates")
 
 # Security
 security = HTTPBearer()
@@ -278,161 +282,10 @@ async def health_check():
     }
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    """Root endpoint with attractive frontend"""
-    return """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🤖 AI Document Assistant - HackRX 2025</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
+async def root(request: Request):
+    """Root endpoint serving the original frontend template"""
+    return templates.TemplateResponse("index.html", {"request": request})
 
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-            }
-
-            .container {
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(10px);
-                border-radius: 20px;
-                padding: 40px;
-                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-                border: 1px solid rgba(255, 255, 255, 0.18);
-                text-align: center;
-                max-width: 600px;
-                width: 90%;
-            }
-
-            .title {
-                font-size: 2.5em;
-                margin-bottom: 10px;
-                background: linear-gradient(45deg, #FFD700, #FFA500);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                animation: glow 2s ease-in-out infinite alternate;
-            }
-
-            @keyframes glow {
-                from { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); }
-                to { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8)); }
-            }
-
-            .subtitle {
-                font-size: 1.2em;
-                margin-bottom: 30px;
-                opacity: 0.9;
-            }
-
-            .features {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 20px;
-                margin: 30px 0;
-            }
-
-            .feature {
-                background: rgba(255, 255, 255, 0.1);
-                padding: 20px;
-                border-radius: 15px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }
-
-            .feature-icon {
-                font-size: 2em;
-                margin-bottom: 10px;
-            }
-
-            .api-info {
-                background: rgba(0, 0, 0, 0.2);
-                padding: 20px;
-                border-radius: 15px;
-                margin-top: 30px;
-                border-left: 4px solid #FFD700;
-            }
-
-            .status {
-                display: inline-block;
-                background: #00ff88;
-                color: #000;
-                padding: 5px 15px;
-                border-radius: 20px;
-                font-weight: bold;
-                margin-top: 20px;
-                animation: pulse 2s infinite;
-            }
-
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-                100% { transform: scale(1); }
-            }
-
-            .hackrx-badge {
-                background: linear-gradient(45deg, #ff6b6b, #ee5a24);
-                color: white;
-                padding: 10px 20px;
-                border-radius: 25px;
-                display: inline-block;
-                margin-top: 20px;
-                font-weight: bold;
-                box-shadow: 0 4px 15px rgba(238, 90, 36, 0.4);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1 class="title">🤖 AI Document Assistant</h1>
-            <p class="subtitle">✨ Intelligent Legal & Insurance Document Analysis ✨</p>
-
-            <div class="features">
-                <div class="feature">
-                    <div class="feature-icon">📄</div>
-                    <h3>Smart PDF Processing</h3>
-                    <p>Advanced text extraction and analysis</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">🧠</div>
-                    <h3>AI-Powered Q&A</h3>
-                    <p>Gemini AI for accurate responses</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Lightning Fast</h3>
-                    <p>Sub-5 second response times</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">🔒</div>
-                    <h3>Secure & Reliable</h3>
-                    <p>Enterprise-grade security</p>
-                </div>
-            </div>
-
-            <div class="api-info">
-                <h3>🚀 API Endpoint</h3>
-                <p><strong>POST</strong> /api/v1/hackrx/run</p>
-                <p>Send your document URLs and questions for instant AI analysis</p>
-            </div>
-
-            <div class="status">🟢 SYSTEM ONLINE</div>
-            <div class="hackrx-badge">🏆 HackRX 2025 Ready</div>
-        </div>
-    </body>
-    </html>
-    """
 
 @app.post("/api/v1/hackrx/run", response_model=QueryResponse)
 async def hackrx_document_processing(
