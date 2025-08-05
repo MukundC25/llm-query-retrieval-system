@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
 """
-Minimal working version for HackRX 2025 - Focus on core accuracy
+Ultra-minimal working system for HackRX 2025 - Phase 1 Recovery
 """
 import os
 import logging
 import time
 import requests
-import io
 import re
 from dotenv import load_dotenv
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from pdfminer.high_level import extract_text
-from pdfminer.layout import LAParams
 import google.generativeai as genai
+
+# Try PyMuPDF first, fallback to pdfminer
+try:
+    import fitz  # PyMuPDF
+    PDF_LIBRARY = "pymupdf"
+except ImportError:
+    try:
+        from pdfminer.high_level import extract_text
+        from pdfminer.layout import LAParams
+        import io
+        PDF_LIBRARY = "pdfminer"
+    except ImportError:
+        PDF_LIBRARY = "none"
 
 # Load environment variables
 load_dotenv()
@@ -61,9 +71,20 @@ class QueryResponse(BaseModel):
 document_cache = {}
 
 def get_gemini_model():
-    """Get Gemini model"""
+    """Get Gemini model - try available models"""
     try:
-        return genai.GenerativeModel('gemini-1.5-flash')
+        # Try the latest available models
+        for model_name in ['gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro']:
+            try:
+                model = genai.GenerativeModel(model_name)
+                logger.info(f"Successfully loaded model: {model_name}")
+                return model
+            except Exception as e:
+                logger.warning(f"Failed to load {model_name}: {e}")
+                continue
+
+        logger.error("No Gemini models available")
+        return None
     except Exception as e:
         logger.error(f"Error getting Gemini model: {e}")
         return None
@@ -79,16 +100,32 @@ async def download_document(url: str) -> bytes:
         raise Exception(f"Failed to download document: {e}")
 
 def extract_text_from_pdf(pdf_content: bytes) -> str:
-    """Extract text from PDF"""
+    """Extract text from PDF using best available method"""
     try:
-        laparams = LAParams(
-            boxes_flow=0.5,
-            word_margin=0.1,
-            char_margin=2.0,
-            line_margin=0.5
-        )
-        text = extract_text(io.BytesIO(pdf_content), laparams=laparams)
-        return text
+        if PDF_LIBRARY == "pymupdf":
+            # Use PyMuPDF (faster and more reliable)
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            doc.close()
+            logger.info(f"Extracted {len(text)} characters using PyMuPDF")
+            return text
+
+        elif PDF_LIBRARY == "pdfminer":
+            # Fallback to pdfminer
+            laparams = LAParams(
+                boxes_flow=0.5,
+                word_margin=0.1,
+                char_margin=2.0,
+                line_margin=0.5
+            )
+            text = extract_text(io.BytesIO(pdf_content), laparams=laparams)
+            logger.info(f"Extracted {len(text)} characters using pdfminer")
+            return text
+        else:
+            raise Exception("No PDF extraction library available")
+
     except Exception as e:
         logger.error(f"Error extracting text: {e}")
         raise Exception(f"Failed to extract PDF text: {e}")
@@ -160,18 +197,28 @@ async def answer_question(question: str, relevant_chunks: List[str]) -> str:
         # Prepare context
         context = "\n\n".join([f"Section {i+1}:\n{chunk}" for i, chunk in enumerate(relevant_chunks)])
         
-        # Simple but effective prompt
-        prompt = f"""Based on the following document sections, answer the question accurately.
+        # Enhanced prompt for better accuracy
+        prompt = f"""You are a legal document assistant. Answer based only on this policy document.
 
-DOCUMENT SECTIONS:
+POLICY DOCUMENT TEXT:
 {context}
 
 QUESTION: {question}
 
-INSTRUCTIONS:
-- Answer based only on the information in the document sections above
-- Be specific and include exact details when available
-- If the information is not in the document, say "This information is not available in the provided document"
+CRITICAL INSTRUCTIONS:
+1. Read the document text carefully
+2. Answer ONLY based on information explicitly stated in the document
+3. Include specific details: numbers, percentages, time periods, conditions
+4. Quote relevant text when providing specific information
+5. If the exact information is not found, say "This information is not available in the provided document"
+6. Be precise and factual - do not make assumptions
+
+For insurance questions, look for:
+- Waiting periods (pre-existing diseases, specific conditions)
+- Grace periods (premium payments)
+- Coverage amounts and limits
+- Exclusions and restrictions
+- Benefits and eligibility criteria
 
 ANSWER:"""
 
@@ -213,14 +260,21 @@ async def process_document_and_questions(document_url: str, questions: List[str]
         logger.error(f"Error processing document: {e}")
         return [f"Error: Document processing failed - {str(e)}"] * len(questions)
 
+@app.get("/ping")
+async def ping():
+    """Simple ping endpoint for testing"""
+    return {"status": "ok", "message": "pong"}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "message": "Minimal LLM Query Retrieval System is running",
+        "message": "Ultra-minimal LLM Query Retrieval System - Phase 1",
         "timestamp": time.time(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "pdf_library": PDF_LIBRARY,
+        "gemini_configured": GEMINI_API_KEY is not None
     }
 
 @app.get("/", response_class=HTMLResponse)
