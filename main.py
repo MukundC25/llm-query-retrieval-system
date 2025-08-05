@@ -63,7 +63,7 @@ document_cache = {}
 def get_gemini_model():
     """Get Gemini model"""
     try:
-        return genai.GenerativeModel('gemini-pro')
+        return genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
         logger.error(f"Error getting Gemini model: {e}")
         return None
