@@ -30,14 +30,8 @@ from docx import Document
 # AI imports
 import google.generativeai as genai
 
-# Enhanced embeddings
-try:
-    from sentence_transformers import SentenceTransformer
-    import numpy as np
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    import numpy as np
+# Simple math operations
+import math
 
 # Load environment variables
 load_dotenv()
@@ -133,118 +127,42 @@ def get_gemini_model():
     return gemini_model
 
 def generate_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings using best available method"""
+    """Generate embeddings using Gemini with fallback"""
     try:
-        # Strategy 1: Use sentence-transformers for better quality
-        if SENTENCE_TRANSFORMERS_AVAILABLE:
-            return generate_sentence_transformer_embeddings(texts)
-
-        # Strategy 2: Use Gemini embeddings
         embeddings = []
         for text in texts:
-            # Use Gemini's embedding model
-            result = genai.embed_content(
-                model="models/embedding-001",
-                content=text,
-                task_type="retrieval_document"
-            )
-            embeddings.append(result['embedding'])
+            try:
+                # Use Gemini's embedding model
+                result = genai.embed_content(
+                    model="models/embedding-001",
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                embeddings.append(result['embedding'])
+            except Exception as e:
+                logger.warning(f"Gemini embedding failed for text, using fallback: {e}")
+                # Use simple embedding as fallback
+                simple_emb = generate_simple_embeddings([text])[0]
+                embeddings.append(simple_emb)
         return embeddings
     except Exception as e:
         logger.error(f"Error generating embeddings: {e}")
         # Fallback to simple embeddings if all else fails
         return generate_simple_embeddings(texts)
 
-# Global sentence transformer model
-_sentence_model = None
-
-def get_sentence_transformer_model():
-    """Get or initialize sentence transformer model"""
-    global _sentence_model
-    if _sentence_model is None and SENTENCE_TRANSFORMERS_AVAILABLE:
-        try:
-            # Use a model optimized for semantic search
-            _sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
-            logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
-        except Exception as e:
-            logger.error(f"Failed to load sentence transformer model: {e}")
-            return None
-    return _sentence_model
-
-def generate_sentence_transformer_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings using sentence-transformers"""
-    try:
-        model = get_sentence_transformer_model()
-        if model is None:
-            return generate_simple_embeddings(texts)
-
-        # Generate embeddings
-        embeddings = model.encode(texts, convert_to_tensor=False, normalize_embeddings=True)
-
-        # Convert to list format
-        if isinstance(embeddings, np.ndarray):
-            embeddings = embeddings.tolist()
-
-        logger.info(f"Generated {len(embeddings)} sentence-transformer embeddings")
-        return embeddings
-
-    except Exception as e:
-        logger.error(f"Error in sentence transformer embeddings: {e}")
-        return generate_simple_embeddings(texts)
-
-def prepare_smart_context(relevant_chunks: List[dict], max_tokens: int = 1000) -> str:
-    """Prepare context with smart chunk merging and token management"""
+def prepare_smart_context(relevant_chunks: List[dict]) -> str:
+    """Prepare context from relevant chunks"""
     if not relevant_chunks:
         return ""
 
-    # Sort chunks by relevance
-    sorted_chunks = sorted(relevant_chunks, key=lambda x: x.get('similarity_score', 0), reverse=True)
-
-    # Estimate tokens (rough: 1 token ≈ 4 characters)
-    max_chars = max_tokens * 4
-
     context_parts = []
-    total_chars = 0
-
-    # Group adjacent chunks if they're from similar positions
-    merged_chunks = []
-    for chunk in sorted_chunks:
-        similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
-
-        # Skip very low relevance chunks
-        if similarity < 0.15 and len(sorted_chunks) > 2:
-            continue
-
+    for i, chunk in enumerate(relevant_chunks):
+        similarity = chunk.get('similarity_score', 0)
         chunk_text = chunk['text']
 
-        # Try to merge with previous chunk if they're adjacent and similar
-        if (merged_chunks and
-            abs(chunk.get('start_pos', 0) - merged_chunks[-1].get('end_pos', 0)) < 100 and
-            similarity > 0.3):
-            # Merge chunks
-            merged_chunks[-1]['text'] += f"\n{chunk_text}"
-            merged_chunks[-1]['end_pos'] = chunk.get('end_pos', 0)
-            merged_chunks[-1]['similarity_score'] = max(
-                merged_chunks[-1].get('similarity_score', 0), similarity
-            )
-        else:
-            merged_chunks.append(chunk)
+        context_parts.append(f"[Document Section {i+1} - Relevance: {similarity:.2f}]\n{chunk_text}\n")
 
-    # Build context within token limits
-    for i, chunk in enumerate(merged_chunks):
-        similarity = chunk.get('similarity_score', chunk.get('text_score', 0))
-        chunk_text = chunk['text']
-
-        # Estimate if adding this chunk would exceed limits
-        section_text = f"[Section {i+1} - Relevance: {similarity:.2f}]\n{chunk_text}\n\n"
-
-        if total_chars + len(section_text) > max_chars and len(context_parts) > 0:
-            break
-
-        context_parts.append(section_text)
-        total_chars += len(section_text)
-
-    return "".join(context_parts).strip()
+    return "\n".join(context_parts)
 
 def generate_simple_embeddings(texts: List[str]) -> List[List[float]]:
     """Fallback simple embeddings"""
@@ -487,101 +405,53 @@ async def process_document(document_url: str) -> dict:
         raise Exception(f"Document processing failed: {e}")
 
 def find_relevant_chunks(query: str, document_data: dict, top_k: int = 5) -> List[dict]:
-    """Find most relevant chunks using enhanced reranking with top-3 cosine scores"""
+    """Find most relevant chunks using simple but effective similarity"""
     try:
         # Generate embedding for the query
         query_embedding = generate_embeddings([query])[0]
         query_lower = query.lower()
 
-        # Phase 1: Calculate base similarities
+        # Calculate similarities with all chunks
         similarities = []
         for chunk in document_data['chunks']:
             if 'embedding' in chunk:
                 # Base semantic similarity
                 semantic_similarity = cosine_similarity_manual(query_embedding, chunk['embedding'])
 
+                # Simple keyword boost
+                chunk_text_lower = chunk['text'].lower()
+                keyword_boost = 0
+
+                # Check for exact keyword matches
+                query_words = query_lower.split()
+                for word in query_words:
+                    if len(word) > 3 and word in chunk_text_lower:
+                        keyword_boost += 0.1
+
+                # Insurance domain boost
+                if any(term in chunk_text_lower for term in ['policy', 'coverage', 'benefit', 'premium', 'insured']):
+                    keyword_boost += 0.05
+
+                # Final score
+                final_score = semantic_similarity + keyword_boost
+
                 similarities.append({
                     'chunk': chunk,
-                    'semantic_sim': semantic_similarity,
-                    'chunk_text_lower': chunk['text'].lower()
+                    'similarity': final_score,
+                    'semantic_sim': semantic_similarity
                 })
 
-        # Phase 2: Get top-3 by cosine similarity for reranking
-        similarities.sort(key=lambda x: x['semantic_sim'], reverse=True)
-        top_candidates = similarities[:min(10, len(similarities))]  # Get top 10 for reranking
-
-        # Phase 3: Enhanced reranking of top candidates
-        reranked = []
-        for item in top_candidates:
-            chunk = item['chunk']
-            semantic_similarity = item['semantic_sim']
-            chunk_text_lower = item['chunk_text_lower']
-
-            # Enhanced scoring factors
-            query_words = set(query_lower.split())
-            chunk_words = set(chunk_text_lower.split())
-
-            # Keyword overlap score
-            keyword_overlap = len(query_words.intersection(chunk_words)) / max(len(query_words), 1)
-
-            # Exact phrase matching bonus
-            phrase_bonus = 0
-            for word in query_words:
-                if len(word) > 3 and word in chunk_text_lower:
-                    phrase_bonus += 0.1
-
-            # Length quality factor
-            length_factor = min(1.0, len(chunk['text']) / 150)
-
-            # Insurance domain relevance
-            domain_keywords = [
-                'policy', 'coverage', 'benefit', 'claim', 'premium', 'insured',
-                'waiting', 'grace', 'exclusion', 'maternity', 'ayush', 'room rent',
-                'deductible', 'copayment', 'sum insured', 'pre-existing'
-            ]
-            domain_matches = sum(1 for keyword in domain_keywords if keyword in chunk_text_lower)
-            domain_score = min(1.0, domain_matches / 5)  # Normalize to max 1.0
-
-            # Question-specific relevance
-            question_relevance = 0
-            if 'waiting' in query_lower and 'waiting' in chunk_text_lower:
-                question_relevance += 0.2
-            if 'grace' in query_lower and 'grace' in chunk_text_lower:
-                question_relevance += 0.2
-            if 'ayush' in query_lower and 'ayush' in chunk_text_lower:
-                question_relevance += 0.2
-            if 'exclusion' in query_lower and any(term in chunk_text_lower for term in ['exclusion', 'excluded', 'not covered']):
-                question_relevance += 0.2
-
-            # Final reranked score
-            final_score = (
-                semantic_similarity * 0.4 +      # Base semantic similarity
-                keyword_overlap * 0.25 +         # Keyword overlap
-                domain_score * 0.15 +            # Domain relevance
-                question_relevance * 0.15 +      # Question-specific relevance
-                phrase_bonus * 0.05              # Exact phrase bonus
-            )
-
-            reranked.append({
-                'chunk': chunk,
-                'similarity': final_score,
-                'semantic_sim': semantic_similarity,
-                'keyword_overlap': keyword_overlap,
-                'domain_score': domain_score,
-                'question_relevance': question_relevance
-            })
-
-        # Phase 4: Final ranking and selection
-        reranked.sort(key=lambda x: x['similarity'], reverse=True)
+        # Sort by similarity and return top_k
+        similarities.sort(key=lambda x: x['similarity'], reverse=True)
 
         relevant_chunks = []
-        for item in reranked[:top_k]:
+        for item in similarities[:top_k]:
             chunk_data = item['chunk'].copy()
             chunk_data['similarity_score'] = item['similarity']
             chunk_data['semantic_score'] = item['semantic_sim']
             relevant_chunks.append(chunk_data)
 
-        logger.info(f"Reranked {len(relevant_chunks)} chunks with scores: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
+        logger.info(f"Found {len(relevant_chunks)} relevant chunks with scores: {[f'{c['similarity_score']:.3f}' for c in relevant_chunks]}")
         return relevant_chunks
 
     except Exception as e:
