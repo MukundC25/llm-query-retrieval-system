@@ -140,50 +140,102 @@ def clean_text(text: str) -> str:
     text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)]', ' ', text)
     return text.strip()
 
-def chunk_text(text: str, chunk_size: int = 1000) -> List[str]:
-    """Split text into chunks"""
+def chunk_text(text: str, chunk_size: int = 1500) -> List[str]:
+    """Split text into optimized chunks for better accuracy"""
     chunks = []
-    words = text.split()
-    
+
+    # Split by sentences first for better context preservation
+    sentences = re.split(r'[.!?]+', text)
+
     current_chunk = []
     current_length = 0
-    
-    for word in words:
-        if current_length + len(word) > chunk_size and current_chunk:
-            chunks.append(' '.join(current_chunk))
-            current_chunk = [word]
-            current_length = len(word)
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        sentence_length = len(sentence)
+
+        # If adding this sentence would exceed chunk size and we have content
+        if current_length + sentence_length > chunk_size and current_chunk:
+            chunks.append('. '.join(current_chunk) + '.')
+            current_chunk = [sentence]
+            current_length = sentence_length
         else:
-            current_chunk.append(word)
-            current_length += len(word) + 1
-    
+            current_chunk.append(sentence)
+            current_length += sentence_length + 2  # +2 for '. '
+
+    # Add the last chunk
     if current_chunk:
-        chunks.append(' '.join(current_chunk))
-    
+        chunks.append('. '.join(current_chunk) + '.')
+
+    # Filter out very short chunks (less than 50 characters)
+    chunks = [chunk for chunk in chunks if len(chunk) > 50]
+
     return chunks
 
-def find_relevant_chunks(question: str, chunks: List[str], top_k: int = 3) -> List[str]:
-    """Find relevant chunks using simple keyword matching"""
+def find_relevant_chunks(question: str, chunks: List[str], top_k: int = 4) -> List[str]:
+    """Find relevant chunks using enhanced keyword matching and scoring"""
     question_lower = question.lower()
     question_words = set(question_lower.split())
-    
+
+    # Enhanced keyword sets for better matching
+    insurance_keywords = {
+        'policy', 'coverage', 'benefit', 'premium', 'insured', 'claim', 'deductible',
+        'copayment', 'waiting', 'grace', 'exclusion', 'maternity', 'ayush', 'room rent',
+        'sum insured', 'pre-existing', 'cashless', 'reimbursement', 'hospitalization'
+    }
+
+    medical_keywords = {
+        'treatment', 'hospital', 'medical', 'doctor', 'surgery', 'diagnosis',
+        'illness', 'disease', 'condition', 'therapy', 'medication', 'consultation'
+    }
+
     scored_chunks = []
     for chunk in chunks:
         chunk_lower = chunk.lower()
         chunk_words = set(chunk_lower.split())
-        
-        # Simple scoring based on word overlap
+
+        # 1. Basic word overlap score
         overlap = len(question_words.intersection(chunk_words))
-        
-        # Bonus for insurance keywords
-        insurance_keywords = ['policy', 'coverage', 'benefit', 'premium', 'insured', 'claim']
-        insurance_score = sum(1 for keyword in insurance_keywords if keyword in chunk_lower)
-        
-        total_score = overlap + insurance_score * 0.5
-        
+
+        # 2. Insurance domain relevance
+        insurance_matches = sum(1 for keyword in insurance_keywords if keyword in chunk_lower)
+
+        # 3. Medical domain relevance
+        medical_matches = sum(1 for keyword in medical_keywords if keyword in chunk_lower)
+
+        # 4. Question-specific keyword bonuses
+        specific_bonus = 0
+        if 'waiting' in question_lower and 'waiting' in chunk_lower:
+            specific_bonus += 2
+        if 'grace' in question_lower and 'grace' in chunk_lower:
+            specific_bonus += 2
+        if 'ayush' in question_lower and 'ayush' in chunk_lower:
+            specific_bonus += 2
+        if 'exclusion' in question_lower and any(term in chunk_lower for term in ['exclusion', 'excluded', 'not covered']):
+            specific_bonus += 2
+        if 'maternity' in question_lower and 'maternity' in chunk_lower:
+            specific_bonus += 2
+        if 'company' in question_lower and any(term in chunk_lower for term in ['hdfc', 'ergo', 'company', 'limited']):
+            specific_bonus += 2
+
+        # 5. Length quality factor (prefer substantial chunks)
+        length_bonus = min(1.0, len(chunk) / 200)
+
+        # Calculate final score
+        total_score = (
+            overlap * 1.0 +                    # Word overlap
+            insurance_matches * 0.8 +          # Insurance relevance
+            medical_matches * 0.3 +            # Medical relevance
+            specific_bonus * 1.5 +             # Question-specific matches
+            length_bonus * 0.5                 # Length quality
+        )
+
         if total_score > 0:
             scored_chunks.append((chunk, total_score))
-    
+
     # Sort by score and return top chunks
     scored_chunks.sort(key=lambda x: x[1], reverse=True)
     return [chunk for chunk, score in scored_chunks[:top_k]]
@@ -201,28 +253,35 @@ async def answer_question(question: str, relevant_chunks: List[str]) -> str:
         # Prepare context
         context = "\n\n".join([f"Section {i+1}:\n{chunk}" for i, chunk in enumerate(relevant_chunks)])
         
-        # Enhanced prompt for better accuracy
-        prompt = f"""You are a legal document assistant. Answer based only on this policy document.
+        # Enhanced prompt for maximum accuracy
+        prompt = f"""You are an expert insurance policy analyst. Analyze the following document sections and answer the question with precision.
 
-POLICY DOCUMENT TEXT:
+DOCUMENT SECTIONS:
 {context}
 
 QUESTION: {question}
 
-CRITICAL INSTRUCTIONS:
-1. Read the document text carefully
-2. Answer ONLY based on information explicitly stated in the document
-3. Include specific details: numbers, percentages, time periods, conditions
-4. Quote relevant text when providing specific information
-5. If the exact information is not found, say "This information is not available in the provided document"
-6. Be precise and factual - do not make assumptions
+ANALYSIS INSTRUCTIONS:
+1. CAREFULLY read each document section above
+2. Look for EXACT information related to the question
+3. Include SPECIFIC details: numbers, percentages, time periods, amounts, conditions
+4. Quote or reference relevant policy text when providing specific information
+5. If information is not explicitly stated, respond: "This information is not available in the provided document"
 
-For insurance questions, look for:
-- Waiting periods (pre-existing diseases, specific conditions)
-- Grace periods (premium payments)
-- Coverage amounts and limits
-- Exclusions and restrictions
-- Benefits and eligibility criteria
+RESPONSE GUIDELINES:
+- For company questions: Look for company names, registration numbers, addresses
+- For waiting periods: Look for specific time periods (days, months, years)
+- For grace periods: Look for payment deadlines and grace allowances
+- For coverage: Look for benefit amounts, limits, conditions
+- For exclusions: Look for "excluded", "not covered", "limitations"
+- For AYUSH: Look for alternative medicine, AYUSH hospitals, traditional treatments
+- For maternity: Look for pregnancy, childbirth, maternity benefits
+
+FORMAT YOUR ANSWER:
+- Start with a direct answer
+- Include specific details from the document
+- Reference policy sections when relevant
+- Be concise but comprehensive
 
 ANSWER:"""
 
