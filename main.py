@@ -246,7 +246,7 @@ async def answer_question(question: str, relevant_chunks: List[str]) -> str:
         model = get_gemini_model()
         if model is None:
             return "Error: AI service is not available"
-        
+
         if not relevant_chunks:
             return "This information is not available in the provided document"
         
