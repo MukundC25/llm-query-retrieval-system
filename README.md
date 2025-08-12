@@ -1,11 +1,11 @@
 # 🧠 LLM-Powered Intelligent Query-Retrieval System
 
-**HackRX 2025 Submission** - An advanced AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using Google Gemini AI and vector similarity search.
+**HackRx 2025 Submission** - An advanced AI system that processes large documents (PDF, DOCX) and responds to natural language queries with contextual, clause-based decisions using Google Gemini AI and vector similarity search.
 
 ## 🌐 **Live Demo**
 **🚀 Try it now:** [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/)
 
-## 🎯 **HackRX 2025 Features**
+## 🎯 **HackRx 2025 Features**
 
 - **🔍 Intelligent Document Analysis**: Processes PDF and DOCX files from URLs
 - **💬 Natural Language Queries**: Ask complex questions about document content
@@ -33,14 +33,14 @@
 - **Pinecone API key** (optional, falls back to in-memory search)
 - **Railway/Vercel account** (for deployment)
 
-## 🌟 **HackRX 2025 Submission URLs**
+## 🌟 **HackRx 2025 Submission URLs**
 
 | Service | URL | Purpose |
 |---------|-----|---------|
 | **🌐 Live Demo** | [https://llm-query-retrieval-system-production.up.railway.app/](https://llm-query-retrieval-system-production.up.railway.app/) | Interactive web interface |
-| **🔌 API Endpoint** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | Main processing API (POST) |
+| **🔌 API Endpoint** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/HackRx/run` | Main processing API (POST) |
 | **📚 API Docs** | [https://llm-query-retrieval-system-production.up.railway.app/docs](https://llm-query-retrieval-system-production.up.railway.app/docs) | Interactive API documentation |
-| **📡 Webhook** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run` | HackRX daily updates (GET) |
+| **📡 Webhook** | `https://llm-query-retrieval-system-production.up.railway.app/api/v1/HackRx/run` | HackRx daily updates (GET) |
 
 ---
 
@@ -196,11 +196,11 @@ Authorization: Bearer YOUR_BEARER_TOKEN
 
 #### 📤 **Request Example**
 ```bash
-curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run" \
+curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/HackRx/run" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf",
+    "documents": "https://HackRx.blob.core.windows.net/assets/policy.pdf",
     "questions": [
       "What is the grace period for premium payment?",
       "What are the coverage conditions?"
@@ -240,7 +240,7 @@ curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v
 | **GET** 🌐 | `/` | Frontend web interface |
 | **GET** ❤️ | `/health` | API health status |
 | **GET** 📚 | `/docs` | Interactive API documentation |
-| **GET** 📊 | `/api/v1/hackrx/status` | HackRX project status |
+| **GET** 📊 | `/api/v1/HackRx/status` | HackRx project status |
 
 </div>
 
@@ -257,10 +257,10 @@ curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v
 </div>
 
 ```bash
-curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/hackrx/run" \
+curl -X POST "https://llm-query-retrieval-system-production.up.railway.app/api/v1/HackRx/run" \
   -H "Authorization: Bearer YOUR_BEARER_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf", "questions": ["What is this document about?"]}'
+  -d '{"documents": "https://HackRx.blob.core.windows.net/assets/policy.pdf", "questions": ["What is this document about?"]}'
 ```
 
 <div align="center">
@@ -404,11 +404,11 @@ python test_api.py
 
 ---
 
-## 🏆 **🎉 HackRX 2025 Submission 🎉**
+## 🏆 **🎉 HackRx 2025 Submission 🎉**
 
 <div align="center">
 
-<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=18&duration=2000&pause=1000&color=FF6B35&center=true&vCenter=true&width=500&lines=🏆+HackRX+2025+Official+Submission+🏆;🤖+AI+Innovators+Team+🤖;⚡+FastAPI+%2B+Google+Gemini+⚡;🚀+Deployed+on+Railway+🚀" alt="HackRX Typing SVG" />
+<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=18&duration=2000&pause=1000&color=FF6B35&center=true&vCenter=true&width=500&lines=🏆+HackRx+2025+Official+Submission+🏆;🤖+AI+Innovators+Team+🤖;⚡+FastAPI+%2B+Google+Gemini+⚡;🚀+Deployed+on+Railway+🚀" alt="HackRx Typing SVG" />
 
 <br/>
 
@@ -488,15 +488,15 @@ python test_api.py
 
 <div align="center">
 
-<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=24&duration=3000&pause=1000&color=FFD700&center=true&vCenter=true&width=600&lines=⭐+Star+this+repository+if+helpful!+⭐;🚀+Built+for+HackRX+2025+with+❤️+🚀;🌟+Thank+you+for+visiting!+🌟" alt="Footer Typing SVG" />
+<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=24&duration=3000&pause=1000&color=FFD700&center=true&vCenter=true&width=600&lines=⭐+Star+this+repository+if+helpful!+⭐;🚀+Built+for+HackRx+2025+with+❤️+🚀;🌟+Thank+you+for+visiting!+🌟" alt="Footer Typing SVG" />
 
 <br/>
 
 [![⭐ Star Repository](https://img.shields.io/badge/⭐_Star_Repository-If_Helpful!-yellow?style=for-the-badge&logo=star)](https://github.com/MukundC25/llm-query-retrieval-system)
-[![🚀 HackRX 2025](https://img.shields.io/badge/🚀_HackRX_2025-Built_with_❤️-red?style=for-the-badge&logo=heart)](https://llm-query-retrieval-system-production.up.railway.app/)
+[![🚀 HackRx 2025](https://img.shields.io/badge/🚀_HackRx_2025-Built_with_❤️-red?style=for-the-badge&logo=heart)](https://llm-query-retrieval-system-production.up.railway.app/)
 
 <br/>
 
-**🎉 Made with ❤️ by the The Semicolons Team for HackRX 2025 🎉**
+**🎉 Made with ❤️ by the The Semicolons Team for HackRx 2025 🎉**
 
 </div>
