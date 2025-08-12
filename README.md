@@ -413,7 +413,7 @@ python test_api.py
 <br/>
 
 **🎯 Project**: LLM-Powered Intelligent Query-Retrieval System
-**👥 Team**: AI Innovators
+**👥 Team**: The Semicolons
 **🛠️ Tech Stack**: FastAPI + Google Gemini + Railway + Tailwind CSS
 **🌐 Demo**: [Live Application](https://llm-query-retrieval-system-production.up.railway.app/)
 
@@ -497,6 +497,6 @@ python test_api.py
 
 <br/>
 
-**🎉 Made with ❤️ by the AI Innovators Team for HackRX 2025 🎉**
+**🎉 Made with ❤️ by the The Semicolons Team for HackRX 2025 🎉**
 
 </div>
